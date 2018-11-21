@@ -1,0 +1,7 @@
+[package]
+name = "hexworld-ggez"
+version = "0.1.0"
+authors = ["Roman S. Borschel <roman@pkaboo.org>"]
+
+[dependencies]
+hexworld = { path = "../core" }

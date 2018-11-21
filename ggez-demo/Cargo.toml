@@ -1,0 +1,10 @@
+[package]
+name = "hexworld-ggez-demo"
+version = "0.1.0"
+authors = ["Roman S. Borschel <roman@pkaboo.org>"]
+
+[dependencies]
+hexworld = { path = "../core" }
+ggez = "^0.4"
+nalgebra = "^0.14"
+
