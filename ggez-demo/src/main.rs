@@ -2,14 +2,13 @@
 extern crate hexworld;
 extern crate ggez;
 
-use std::hash::Hash;
-
 use ggez::*;
 use ggez::graphics::*;
 use ggez::event::*;
 
 use hexworld::grid::*;
 use hexworld::grid::offset::*;
+use hexworld::grid::cube::vec::flat;
 
 struct State {
     grid: OffsetGrid,
@@ -37,6 +36,7 @@ impl State {
 const RED: Color = Color { r: 1., g: 0., b: 0., a: 0.7 };
 const BLUE: Color = Color { r: 0., g: 0., b: 1., a: 0.7 };
 const GREEN: Color = Color { r: 0., g: 1., b: 0., a: 0.7 };
+const GREY: Color = Color { r: 0.5, g: 0.5, b: 0.5, a: 0.7 };
 
 impl EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
@@ -133,9 +133,23 @@ impl EventHandler for State {
         let obs2_cube = obstacle2.to_cube(&self.grid);
         let obs_start = Offset::new(8,9).to_cube(&self.grid);
         let reachable = obs_start.range_reachable(3, |x| x != obs1_cube && x != obs2_cube);
-        self.render_hexes(&mut mesh, reachable, DrawMode::Fill);
+        self.render_hexes(&mut mesh, reachable.into_iter(), DrawMode::Fill);
         let reachable_ranges = mesh.build(ctx)?;
         graphics::draw(ctx, &reachable_ranges, Point2::new(0.,0.), 0.0)?;
+
+        // Rings
+        set_color(ctx, GREY)?;
+        mesh = MeshBuilder::new();
+        let ring_center = Offset::new(10,4).to_cube(&self.grid);
+        let ring = ring_center.walk_ring(flat::Direction::NorthEast, 4, Rotation::CW).collect::<Vec<_>>();
+        println!("START");
+        for h in &ring {
+            println!("{:?}", Offset::from_cube(*h, &self.grid));
+        }
+        println!("END");
+        self.render_hexes(&mut mesh, ring.into_iter(), DrawMode::Fill);
+        let ring_mesh = mesh.build(ctx)?;
+        graphics::draw(ctx, &ring_mesh, Point2::new(0.,0.), 0.0)?;
 
         present(ctx);
 
@@ -166,8 +180,10 @@ fn main() {
     let ctx = &mut Context::load_from_conf("ggez-hex-demo", "nobody", cfg).unwrap();
     // let font = Font::default_font().unwrap();
 
-    let schema = Schema::new(50., Orientation::FlatTop);
+    let schema = Schema::new(50., Orientation::PointyTop);
     let grid = OffsetGrid::new(100, 100, schema, Stagger::Odd);
+
+    println!("{:?}", Offset::from_cube(Cube::new_xy(13,-12), &grid));
 
     let state = &mut State {
         grid,

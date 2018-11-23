@@ -1,15 +1,16 @@
 //! A cube coordinate system for hexagonal grids.
-pub mod dir;
 
-use nalgebra::core::Vector3;
+pub mod vec;
+
 use nalgebra::geometry::Point3;
 
 use std::collections::HashSet;
 use std::ops::{ Add, Sub, RangeInclusive };
-use std::cmp::{ min, max };
+use std::cmp::{ Ordering, min, max };
+use std::iter;
 
 use super::*;
-use self::dir::*;
+use self::vec::*;
 
 /// Cube coordinates, i.e. points in 3d space, satisfying `x + y + z = 0`.
 ///
@@ -26,7 +27,7 @@ use self::dir::*;
 ///
 /// [Cube coordinates]: https://www.redblobgames.com/grids/hexagons/#coordinates-cube
 /// [`Coords`]: trait.Coords.html
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, PartialOrd)]
 pub struct Cube {
     p: Point3<i32>,
 }
@@ -48,9 +49,9 @@ impl Cube {
         Self::mk(-y - z, y, z)
     }
 
-    pub fn x(&self) -> i32 { self.p.coords.x }
-    pub fn y(&self) -> i32 { self.p.coords.y }
-    pub fn z(&self) -> i32 { self.p.coords.z }
+    pub fn x(&self) -> i32 { self.p.x }
+    pub fn y(&self) -> i32 { self.p.y }
+    pub fn z(&self) -> i32 { self.p.z }
 
     /// Iterate over the neighbouring (adjacent) cube coordinates.
     pub fn neighbours(&self) -> impl Iterator<Item=Cube> + '_ {
@@ -65,9 +66,9 @@ impl Cube {
 
     /// The distance to another cube coordinate.
     pub fn distance(&self, other: Cube) -> u32 { // TODO: usize
-        ( (self.x() - other.x()).abs() as u32 +
-          (self.y() - other.y()).abs() as u32 +
-          (self.z() - other.z()).abs() as u32 ) / 2
+        ( (self.p.x - other.p.x).abs() as u32 +
+          (self.p.y - other.p.y).abs() as u32 +
+          (self.p.z - other.p.z).abs() as u32 ) / 2
     }
 
     /// The shortest path to another cube coordinate, i.e. along
@@ -83,6 +84,7 @@ impl Cube {
 
     /// The cube coordinates that are within the given range.
     pub fn range(&self, r: u16) -> impl Iterator<Item=Cube> + '_ {
+        // TODO: Dedicated RangeIter
         let mut v   = Vec::with_capacity(Self::num_in_range(r));
         let x_end   = r as i32;
         let x_start = -x_end;
@@ -97,12 +99,23 @@ impl Cube {
     }
 
     /// The number of cube coordinates that are within the given range.
+    #[inline]
     pub fn num_in_range(r: u16) -> usize {
-        3 * (r as usize) * (r as usize + 1) + 1
+        Self::num_in_ring(r) * (r as usize + 1) / 2 + 1
+        // 3 * (r as usize) * (r as usize + 1) + 1
+    }
+
+    /// The number of cube coordinates that are in the ring of
+    /// a given radius.
+    #[inline]
+    pub fn num_in_ring(r: u16) -> usize {
+        6 * (r as usize)
     }
 
     pub fn range_overlapping(&self, other: Cube, r: u16)
-            -> impl Iterator<Item=Cube> + '_ {
+        -> impl Iterator<Item=Cube> + '_
+    {
+        // TODO: Use dedicated RangeIter
         let n = r as i32;
         let mut v = Vec::new();
         let x_min = max(self.x() - n, other.x() - n);
@@ -122,12 +135,12 @@ impl Cube {
     }
 
     /// The cube coordinates that are within the given range and reachable.
-    /// A cube coordinate is reachable if it is in the range...
-    pub fn range_reachable<F>(&self, r: u16, f: F) -> impl Iterator<Item=Cube> + '_
-            where F: Fn(Cube) -> bool {
+    pub fn range_reachable<F>(&self, r: u16, f: F) -> HashSet<Cube>
+        where F: Fn(Cube) -> bool
+    {
         let mut reachable = HashSet::new();
-        reachable.insert(*self);
         let mut fringe = Vec::new();
+        reachable.insert(*self);
         fringe.push(*self);
         for _ in 1..(r as usize + 1) {
             let mut fringe_i = Vec::new();
@@ -141,7 +154,30 @@ impl Cube {
             }
             fringe = fringe_i;
         }
-        reachable.into_iter()
+        reachable
+    }
+
+    pub fn walk_ring<D>(&self, dir: D, rad: u16, rot: Rotation)
+        -> impl Iterator<Item=Cube> + '_
+        where D: DirIndex
+    {
+        let mut v = Vec::with_capacity(rad as usize * 6);
+        let mut c = *self + CubeVec::direction(dir) * rad as i32;
+        for d in CubeVec::walk_directions(dir, rot) {
+            for _ in 0..rad {
+                v.push(c);
+                c = c + d;
+            }
+        }
+        v.into_iter()
+    }
+
+    pub fn walk_range<'a, D>(&'a self, dir: D, rad: u16, rot: Rotation)
+        -> impl Iterator<Item=Cube> + 'a
+        where D: DirIndex + 'a
+    {
+        let rings = (1..rad+1).flat_map(move |i| self.walk_ring(dir, i, rot));
+        iter::once(*self).chain(rings)
     }
 
     fn mk(x: i32, y: i32, z: i32) -> Cube {
@@ -215,60 +251,16 @@ fn lerp(ai: i32, bi: i32, fr: Frac1) -> f32 {
     a + (b - a) * t
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct CubeVec(Vector3<i32>);
-
-impl CubeVec {
-    pub fn new_xz(x: i32, z: i32) -> CubeVec {
-        CubeVec(Vector3::new(x, -x - z, z))
-    }
-
-    pub fn new_xy(x: i32, y: i32) -> CubeVec {
-        CubeVec(Vector3::new(x, y, -x - y))
-    }
-
-    pub fn new_yz(y: i32, z: i32) -> CubeVec {
-        CubeVec(Vector3::new(-y - z, y, z))
-    }
-
-    pub fn directions() -> impl Iterator<Item=CubeVec> {
-        CUBE_DIR_VECTORS.iter().map(|v| CubeVec(Vector3::from(*v)))
-    }
-
-    pub fn diagonals() -> impl Iterator<Item=CubeVec> {
-        CUBE_DIA_VECTORS.iter().map(|v| CubeVec(Vector3::from(*v)))
-    }
-}
-
-impl Add<CubeVec> for CubeVec {
-    type Output = CubeVec;
-
-    fn add(self, other: CubeVec) -> Self::Output {
-        CubeVec(self.0 + other.0)
-    }
-}
-
-impl Sub<CubeVec> for CubeVec {
-    type Output = CubeVec;
-
-    fn sub(self, other: CubeVec) -> CubeVec {
-        CubeVec(self.0 - other.0)
-    }
-}
-
-impl Neg for CubeVec {
-    type Output = CubeVec;
-
-    fn neg(self) -> CubeVec {
-        CubeVec(-self.0)
-    }
-}
-
-impl Mul<i32> for CubeVec {
-    type Output = CubeVec;
-
-    fn mul(self, s: i32) -> CubeVec {
-        CubeVec(self.0 * s)
+impl Ord for Cube {
+    fn cmp(&self, other: &Cube) -> Ordering {
+        self.partial_cmp(other).unwrap_or_else(||
+            match self.p.x.cmp(&other.p.x) {
+                Ordering::Equal => match self.p.y.cmp(&other.p.y) {
+                    Ordering::Equal => self.p.z.cmp(&other.p.z),
+                    ord => ord
+                }
+                ord => ord
+            })
     }
 }
 
@@ -277,6 +269,7 @@ impl Add<CubeVec> for Cube {
 
     fn add(self, v: CubeVec) -> Cube {
         Cube { p: self.p + v.0 }
+        // Cube::new_xy(self.p.x + v.x(), self.p.y + v.y())
     }
 }
 
@@ -285,6 +278,7 @@ impl Sub<Cube> for Cube {
 
     fn sub(self, other: Cube) -> CubeVec {
         CubeVec(self.p - other.p)
+        // CubeVec::new_xy(self.p.x - other.p.x, self.p.y - other.p.y)
     }
 }
 
@@ -302,13 +296,21 @@ mod tests {
     use quickcheck::*;
     use rand::{ Rng, thread_rng };
     use std::cmp::max;
+    use std::collections::HashSet;
     use std::i32;
-    use super::dir::*;
+    use super::vec::*;
 
     impl Arbitrary for Cube {
         fn arbitrary<G: Gen>(g: &mut G) -> Cube {
             let (x, z) = (g.gen::<i16>(), g.gen::<i16>());
             Cube::new_xz(x as i32, z as i32)
+        }
+    }
+
+    impl Arbitrary for CubeVec {
+        fn arbitrary<G: Gen>(g: &mut G) -> CubeVec {
+            let (x, z) = (g.gen::<i16>(), g.gen::<i16>());
+            CubeVec::new_xz(x as i32, z as i32)
         }
     }
 
@@ -406,7 +408,42 @@ mod tests {
             v.iter().all(|n| c1.range(r).any(|x| x == *n) &&
                              c2.range(r).any(|x| x == *n))
         }
-        quickcheck(prop as fn(Cube) -> bool);
+        quickcheck(prop as fn(_) -> _);
+    }
+
+    #[test]
+    fn prop_vec_rotate() {
+        fn prop(v: CubeVec, z: Z6) -> bool {
+            v.rotate(Rotation::CW, z) == v.rotate(Rotation::CCW, Z6::Zero - z)
+        }
+        quickcheck(prop as fn(_,_) -> _)
+    }
+
+    #[test]
+    fn prop_walk_ring() {
+        fn prop(c: Cube, r: u16) -> bool {
+            c.walk_ring(flat::Direction::North, r, Rotation::CW)
+                .count() == Cube::num_in_ring(r)
+            // &&
+            // c.walk_ring(flat::Direction::North, r, Rotation::CW)
+            //     .collect::<Vec<_>>()
+            //     ==
+            //     c.walk_ring(flat::Direction::North, r, Rotation::CCW)
+            //         .collect::<Vec<_>>()
+            //         .reverse()
+        }
+        quickcheck(prop as fn(Cube, u16) -> bool);
+    }
+
+    #[test]
+    fn prop_walk_range() {
+        fn prop(c: Cube, r: u16) -> bool {
+            c.walk_range(flat::Direction::North, r, Rotation::CW)
+                .collect::<HashSet<_>>()
+                ==
+                c.range(r).collect::<HashSet<_>>()
+        }
+        quickcheck(prop as fn(Cube, u16) -> bool);
     }
 }
 

@@ -1,4 +1,5 @@
 
+extern crate either;
 extern crate nalgebra;
 extern crate num_rational;
 extern crate num_traits;

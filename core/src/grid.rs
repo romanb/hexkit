@@ -14,13 +14,18 @@ use std::hash::Hash;
 /// an overlaid coordinate system.
 pub trait Grid<C> where C: Coords + Hash {
     fn schema(&self) -> &Schema;
-    fn tiles(&self) -> &HashMap<C, Hexagon>;
+    fn tiles(&self) -> &HashMap<C, Hexagon>; // HashMap<C, Tile<S>>
 
     fn visible_tiles<'a>(&'a self, vp: &'a Viewport)
             -> Box<Iterator<Item=(&C,&Hexagon)> + 'a> {
         Box::new(self.tiles().iter().filter(move |(_, hex)|
             vp.visible(&self.schema().bounds(&hex))))
     }
+}
+
+pub struct Tile<S> {
+    pub hex: Hexagon,
+    pub state: S,
 }
 
 /// Coordinates on a grid. A grid coordinate system must support
@@ -40,6 +45,7 @@ pub trait Coords: Eq + Copy {
     fn from_cube(cube: Cube, grid: &Self::Grid) -> Option<Self>;
 }
 
+/// A viewport defines the visible region of a grid.
 pub struct Viewport {
     pub x: f32,
     pub y: f32,
