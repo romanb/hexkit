@@ -333,7 +333,7 @@ mod tests {
         fn prop(c: Cube) -> bool {
             c.is_valid()
         }
-        quickcheck(prop as fn(Cube) -> bool);
+        quickcheck(prop as fn(_) -> _);
     }
 
     #[test]
@@ -343,7 +343,7 @@ mod tests {
             ns.iter().all(|n| n.is_valid() && c.distance(*n) == 1)
                 && ns.len() == 6
         }
-        quickcheck(prop as fn(Cube) -> bool);
+        quickcheck(prop as fn(_) -> _);
     }
 
     #[test]
@@ -353,7 +353,7 @@ mod tests {
             ns.iter().all(|n| n.is_valid() && c.distance(*n) == 2)
                 && ns.len() == 6
         }
-        quickcheck(prop as fn(Cube) -> bool);
+        quickcheck(prop as fn(_) -> _);
     }
 
     #[test]
@@ -363,7 +363,7 @@ mod tests {
             let (x,y,z) = (v.0.x.abs() as u32, v.0.y.abs() as u32, v.0.z.abs() as u32);
             c1.distance(c2) == max(x, max(y, z))
         }
-        quickcheck(prop as fn(Cube, Cube) -> bool);
+        quickcheck(prop as fn(_,_) -> _);
     }
 
     #[test]
@@ -371,7 +371,7 @@ mod tests {
         fn prop(c1: Cube, c2: Cube) -> bool {
             c1.beeline(c2).count() == c1.distance(c2) as usize + 1
         }
-        quickcheck(prop as fn(Cube, Cube) -> bool);
+        quickcheck(prop as fn(_,_) -> _);
     }
 
     #[test]
@@ -382,7 +382,7 @@ mod tests {
             let  z = -x - y;
             Cube::round(x, y, z).is_valid()
         }
-        quickcheck(prop as fn(i16, Frac1, i16, Frac1) -> bool);
+        quickcheck(prop as fn(_,_,_,_) -> bool);
     }
 
     #[test]
@@ -393,7 +393,7 @@ mod tests {
                 && v.contains(&c)
                 && v.len() == Cube::num_in_range(r)
         }
-        quickcheck(prop as fn(Cube, u16) -> bool);
+        quickcheck(prop as fn(_,_) -> _);
     }
 
     #[test]
@@ -412,27 +412,21 @@ mod tests {
     }
 
     #[test]
-    fn prop_vec_rotate() {
-        fn prop(v: CubeVec, z: Z6) -> bool {
-            v.rotate(Rotation::CW, z) == v.rotate(Rotation::CCW, Z6::Zero - z)
-        }
-        quickcheck(prop as fn(_,_) -> _)
-    }
-
-    #[test]
     fn prop_walk_ring() {
-        fn prop(c: Cube, r: u16) -> bool {
-            c.walk_ring(flat::Direction::North, r, Rotation::CW)
-                .count() == Cube::num_in_ring(r)
-            // &&
-            // c.walk_ring(flat::Direction::North, r, Rotation::CW)
-            //     .collect::<Vec<_>>()
-            //     ==
-            //     c.walk_ring(flat::Direction::North, r, Rotation::CCW)
-            //         .collect::<Vec<_>>()
-            //         .reverse()
+        fn prop(c: Cube, r: u16, d: flat::Direction) -> bool {
+            let ring_cw = c.walk_ring(d, r, Rotation::CW).collect::<Vec<_>>();
+            let (ring_cw_head, ring_cw_tail) = (ring_cw.first(), ring_cw.iter().skip(1));
+
+            let ring_ccw = c.walk_ring(d, r, Rotation::CCW).collect::<Vec<_>>();
+            let (ring_ccw_head, ring_ccw_tail) = (ring_ccw.first(), ring_ccw.iter().skip(1));
+
+            ring_cw_head == ring_ccw_head
+                &&
+                ring_cw_tail.collect::<Vec<_>>()
+                ==
+                ring_ccw_tail.rev().collect::<Vec<_>>()
         }
-        quickcheck(prop as fn(Cube, u16) -> bool);
+        quickcheck(prop as fn(_,_,_) -> _);
     }
 
     #[test]
@@ -443,7 +437,7 @@ mod tests {
                 ==
                 c.range(r).collect::<HashSet<_>>()
         }
-        quickcheck(prop as fn(Cube, u16) -> bool);
+        quickcheck(prop as fn(_,_) -> _);
     }
 }
 

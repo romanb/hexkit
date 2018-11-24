@@ -124,6 +124,7 @@ impl Mul<i32> for CubeVec {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use quickcheck::*;
 
     #[test]
     fn test_cube_vectors_valid() {
@@ -133,6 +134,14 @@ mod tests {
         for [x,y,z] in &CUBE_DIA_VECTORS {
             assert!(x + y + z == 0)
         }
+    }
+
+    #[test]
+    fn prop_vec_rotate() {
+        fn prop(v: CubeVec, z: Z6) -> bool {
+            v.rotate(Rotation::CW, z) == v.rotate(Rotation::CCW, Z6::Zero - z)
+        }
+        quickcheck(prop as fn(_,_) -> _)
     }
 }
 
@@ -158,6 +167,7 @@ pub mod flat {
         fn vector(self) -> CubeVec {
             CubeVec(Vector3::from(CUBE_DIR_VECTORS[self as usize]))
         }
+
         fn index(self) -> Z6 {
             Z6::from_u8(self as u8).unwrap()
         }
@@ -223,6 +233,7 @@ pub mod pointy {
         fn vector(self) -> CubeVec {
             CubeVec(Vector3::from(CUBE_DIR_VECTORS[self as usize]))
         }
+
         fn index(self) -> Z6 {
             Z6::from_u8(self as u8).unwrap()
         }

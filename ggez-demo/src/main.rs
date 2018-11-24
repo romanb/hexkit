@@ -14,6 +14,9 @@ struct State {
     grid: OffsetGrid,
     screen_movex: f32,
     screen_movey: f32,
+    screen_resize_width: f32,
+    screen_resize_height: f32,
+    mouse_down: bool,
     // font: Font,
 }
 
@@ -47,6 +50,10 @@ impl EventHandler for State {
     // different colors for the polygons, because the DrawParams
     // can currently not be changed for individual items in a mesh.
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+        // if self.mouse_down {
+        //     return Ok(())
+        // }
+
         graphics::clear(ctx);
 
         // Prepare screen
@@ -54,10 +61,16 @@ impl EventHandler for State {
         if self.screen_movex != 0. || self.screen_movey != 0. {
             screen.x = f32::max(0., screen.x + self.screen_movex);
             screen.y = f32::max(0., screen.y + self.screen_movey);
-            set_screen_coordinates(ctx, screen)?;
             self.screen_movex = 0.;
             self.screen_movey = 0.;
         }
+        if self.screen_resize_width != 0. || self.screen_resize_height != 0. {
+            screen.w = self.screen_resize_width;
+            screen.h = self.screen_resize_height;
+            self.screen_resize_width = 0.;
+            self.screen_resize_height = 0.;
+        }
+        set_screen_coordinates(ctx, screen)?;
         let viewport = Viewport {
             x: screen.x,
             y: screen.y,
@@ -166,6 +179,21 @@ impl EventHandler for State {
             _     => {}
         }
     }
+
+    fn mouse_button_down_event(&mut self, _ctx: &mut Context, _button: MouseButton, _x: i32, _y: i32) {
+        println!("MOUSE DOWN");
+        self.mouse_down = true;
+    }
+
+    fn mouse_button_up_event(&mut self, _ctx: &mut Context, _button: MouseButton, _x: i32, _y: i32) {
+        println!("MOUSE UP");
+        self.mouse_down = false;
+    }
+
+    fn resize_event(&mut self, ctx: &mut Context, width: u32, height: u32) {
+        self.screen_resize_width = width as f32;
+        self.screen_resize_height = height as f32;
+    }
 }
 
 fn scroll_step(repeat: bool) -> f32 {
@@ -175,9 +203,11 @@ fn scroll_step(repeat: bool) -> f32 {
 fn main() {
     let mut cfg = conf::Conf::new();
     cfg.window_mode.vsync = true;
-    cfg.window_mode.width = 1600;
-    cfg.window_mode.height = 1024;
-    let ctx = &mut Context::load_from_conf("ggez-hex-demo", "nobody", cfg).unwrap();
+    cfg.window_mode.width = 1360;
+    cfg.window_mode.height = 768;
+    // cfg.window_mode.fullscreen_type = conf::FullscreenType::True;
+    cfg.window_setup.resizable = true;
+    let ctx = &mut Context::load_from_conf("ggez-demo", "nobody", cfg).unwrap();
     // let font = Font::default_font().unwrap();
 
     let schema = Schema::new(50., Orientation::PointyTop);
@@ -190,6 +220,9 @@ fn main() {
         // font,
         screen_movex: 0.,
         screen_movey: 0.,
+        screen_resize_width: 0.,
+        screen_resize_height: 0.,
+        mouse_down: false,
     };
 
     event::run(ctx, state).unwrap();
