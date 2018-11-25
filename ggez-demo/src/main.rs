@@ -8,15 +8,15 @@ use ggez::event::*;
 
 use hexworld::grid::*;
 use hexworld::grid::offset::*;
-use hexworld::grid::cube::vec::flat;
+use hexworld::grid::cube::vec::*;
 
 struct State {
     grid: OffsetGrid,
-    screen_movex: f32,
-    screen_movey: f32,
+    screen_movex: i32,
+    screen_movey: i32,
+    screen_move_repeat: bool,
     screen_resize_width: f32,
     screen_resize_height: f32,
-    mouse_down: bool,
     // font: Font,
 }
 
@@ -50,19 +50,17 @@ impl EventHandler for State {
     // different colors for the polygons, because the DrawParams
     // can currently not be changed for individual items in a mesh.
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        // if self.mouse_down {
-        //     return Ok(())
-        // }
-
         graphics::clear(ctx);
 
-        // Prepare screen
+        // Update viewport
         let mut screen = get_screen_coordinates(ctx);
-        if self.screen_movex != 0. || self.screen_movey != 0. {
-            screen.x = f32::max(0., screen.x + self.screen_movex);
-            screen.y = f32::max(0., screen.y + self.screen_movey);
-            self.screen_movex = 0.;
-            self.screen_movey = 0.;
+        if self.screen_movex != 0 || self.screen_movey != 0 {
+            screen.x = f32::max(0., screen.x + self.screen_movex as f32);
+            screen.y = f32::max(0., screen.y + self.screen_movey as f32);
+            if !self.screen_move_repeat {
+                self.screen_movex = 0;
+                self.screen_movey = 0;
+            }
         }
         if self.screen_resize_width != 0. || self.screen_resize_height != 0. {
             screen.w = self.screen_resize_width;
@@ -154,12 +152,7 @@ impl EventHandler for State {
         set_color(ctx, GREY)?;
         mesh = MeshBuilder::new();
         let ring_center = Offset::new(10,4).to_cube(&self.grid);
-        let ring = ring_center.walk_ring(flat::Direction::NorthEast, 4, Rotation::CW).collect::<Vec<_>>();
-        println!("START");
-        for h in &ring {
-            println!("{:?}", Offset::from_cube(*h, &self.grid));
-        }
-        println!("END");
+        let ring = ring_center.walk_ring(FlatTopDirection::NorthEast, 4, Rotation::CW).collect::<Vec<_>>();
         self.render_hexes(&mut mesh, ring.into_iter(), DrawMode::Fill);
         let ring_mesh = mesh.build(ctx)?;
         graphics::draw(ctx, &ring_mesh, Point2::new(0.,0.), 0.0)?;
@@ -180,14 +173,38 @@ impl EventHandler for State {
         }
     }
 
-    fn mouse_button_down_event(&mut self, _ctx: &mut Context, _button: MouseButton, _x: i32, _y: i32) {
-        println!("MOUSE DOWN");
-        self.mouse_down = true;
-    }
+    // fn mouse_button_down_event(&mut self, _ctx: &mut Context, _button: MouseButton, _x: i32, _y: i32) {
+    //     println!("MOUSE DOWN");
+    // }
 
-    fn mouse_button_up_event(&mut self, _ctx: &mut Context, _button: MouseButton, _x: i32, _y: i32) {
-        println!("MOUSE UP");
-        self.mouse_down = false;
+    // fn mouse_button_up_event(&mut self, _ctx: &mut Context, _button: MouseButton, _x: i32, _y: i32) {
+    //     println!("MOUSE UP");
+    // }
+
+    fn mouse_motion_event(&mut self, ctx: &mut Context, _state: MouseState, x: i32, y: i32, _xrel: i32, _yrel: i32) {
+        let (w,h) = match get_size(ctx) {
+            (w,h) => (w as i32, h as i32)
+        };
+        let scroll_border = 30;
+        if x <= scroll_border {
+            self.screen_movex = x - scroll_border - 1;
+            self.screen_move_repeat = true;
+        }
+        else if y <= scroll_border {
+            self.screen_movey = y - scroll_border - 1;
+            self.screen_move_repeat = true;
+        }
+        else if x >= w - scroll_border {
+            self.screen_movex = scroll_border + 1 - w + x;
+            self.screen_move_repeat = true;
+        }
+        else if y >= h - scroll_border {
+            self.screen_movey = scroll_border + 1 - h + y;
+            self.screen_move_repeat = true;
+        }
+        else {
+            self.screen_move_repeat = false;
+        }
     }
 
     fn resize_event(&mut self, ctx: &mut Context, width: u32, height: u32) {
@@ -196,8 +213,8 @@ impl EventHandler for State {
     }
 }
 
-fn scroll_step(repeat: bool) -> f32 {
-    10. * if repeat { 2. } else { 1. }
+fn scroll_step(repeat: bool) -> i32 {
+    10 * if repeat { 2 } else { 1 }
 }
 
 fn main() {
@@ -210,7 +227,9 @@ fn main() {
     let ctx = &mut Context::load_from_conf("ggez-demo", "nobody", cfg).unwrap();
     // let font = Font::default_font().unwrap();
 
-    let schema = Schema::new(50., Orientation::PointyTop);
+    ggez::mouse::set_grabbed(ctx, true);
+
+    let schema = Schema::new(50., Orientation::FlatTop);
     let grid = OffsetGrid::new(100, 100, schema, Stagger::Odd);
 
     println!("{:?}", Offset::from_cube(Cube::new_xy(13,-12), &grid));
@@ -218,11 +237,11 @@ fn main() {
     let state = &mut State {
         grid,
         // font,
-        screen_movex: 0.,
-        screen_movey: 0.,
+        screen_movex: 0,
+        screen_movey: 0,
+        screen_move_repeat: false,
         screen_resize_width: 0.,
         screen_resize_height: 0.,
-        mouse_down: false,
     };
 
     event::run(ctx, state).unwrap();

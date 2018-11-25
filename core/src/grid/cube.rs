@@ -159,7 +159,7 @@ impl Cube {
 
     pub fn walk_ring<D>(&self, dir: D, rad: u16, rot: Rotation)
         -> impl Iterator<Item=Cube> + '_
-        where D: DirIndex
+        where D: Direction
     {
         let mut v = Vec::with_capacity(rad as usize * 6);
         let mut c = *self + CubeVec::direction(dir) * rad as i32;
@@ -174,7 +174,7 @@ impl Cube {
 
     pub fn walk_range<'a, D>(&'a self, dir: D, rad: u16, rot: Rotation)
         -> impl Iterator<Item=Cube> + 'a
-        where D: DirIndex + 'a
+        where D: Direction + 'a
     {
         let rings = (1..rad+1).flat_map(move |i| self.walk_ring(dir, i, rot));
         iter::once(*self).chain(rings)
@@ -414,30 +414,30 @@ mod tests {
     #[test]
     fn prop_walk_ring() {
         fn prop(c: Cube, r: u16, d: flat::Direction) -> bool {
-            let ring_cw = c.walk_ring(d, r, Rotation::CW).collect::<Vec<_>>();
-            let (ring_cw_head, ring_cw_tail) = (ring_cw.first(), ring_cw.iter().skip(1));
+            let cw = c.walk_ring(d, r, Rotation::CW).collect::<Vec<_>>();
+            let (cw_head, cw_tail) = (cw.first(), cw.iter().skip(1));
 
-            let ring_ccw = c.walk_ring(d, r, Rotation::CCW).collect::<Vec<_>>();
-            let (ring_ccw_head, ring_ccw_tail) = (ring_ccw.first(), ring_ccw.iter().skip(1));
+            let ccw = c.walk_ring(d, r, Rotation::CCW).collect::<Vec<_>>();
+            let (ccw_head, ccw_tail) = (ccw.first(), ccw.iter().skip(1));
 
-            ring_cw_head == ring_ccw_head
+            cw_head == ccw_head
                 &&
-                ring_cw_tail.collect::<Vec<_>>()
+                cw_tail.collect::<Vec<_>>()
                 ==
-                ring_ccw_tail.rev().collect::<Vec<_>>()
+                ccw_tail.rev().collect::<Vec<_>>()
         }
         quickcheck(prop as fn(_,_,_) -> _);
     }
 
     #[test]
     fn prop_walk_range() {
-        fn prop(c: Cube, r: u16) -> bool {
-            c.walk_range(flat::Direction::North, r, Rotation::CW)
+        fn prop(c: Cube, r: u16, d: flat::Direction, rot: Rotation) -> bool {
+            c.walk_range(d, r, rot)
                 .collect::<HashSet<_>>()
                 ==
                 c.range(r).collect::<HashSet<_>>()
         }
-        quickcheck(prop as fn(_,_) -> _);
+        quickcheck(prop as fn(_,_,_,_) -> _);
     }
 }
 

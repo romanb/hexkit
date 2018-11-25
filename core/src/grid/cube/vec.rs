@@ -7,6 +7,7 @@ pub use std::ops::{ Add, Sub, Mul, Neg };
 pub use geo::{ Z6, Rotation };
 
 use either::Either;
+use num_traits::cast::FromPrimitive;
 
 /// Vectors for the displacement to a neighbouring (adjacent) cube coordinate
 /// along one of the sides of a hexagon.
@@ -25,7 +26,7 @@ const CUBE_DIA_VECTORS: [[i32; 3]; 6] =
 // TODO: Rename to Direction and remove flat/pointy submodules,
 // instead using FlatTopDirection, PointyTopDirection etc. for
 // the enums.
-pub trait DirIndex: Copy + Clone {
+pub trait Direction: Copy + Clone {
     fn index(self) -> Z6;
     fn vector(self) -> CubeVec;
 }
@@ -51,7 +52,7 @@ impl CubeVec {
         CUBE_DIR_VECTORS.iter().map(|v| CubeVec(Vector3::from(*v)))
     }
 
-    pub fn direction<D: DirIndex>(d: D) -> CubeVec {
+    pub fn direction<D: Direction>(d: D) -> CubeVec {
         CubeVec(Vector3::from(CUBE_DIR_VECTORS[d.index() as usize]))
     }
 
@@ -60,7 +61,7 @@ impl CubeVec {
     }
 
     pub fn walk_directions<D>(d: D, r: Rotation) -> impl Iterator<Item=CubeVec>
-        where D: DirIndex
+        where D: Direction
     {
         let dirs = Self::directions();
         match r {
@@ -121,10 +122,117 @@ impl Mul<i32> for CubeVec {
     }
 }
 
+
+/// Directions for neighbouring hexagons in a flat-top orientation.
+#[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
+#[derive(FromPrimitive, Debug)]
+pub enum FlatTopDirection {
+    North     = 0,
+    NorthEast = 1,
+    SouthEast = 2,
+    South     = 3,
+    SouthWest = 4,
+    NorthWest = 5
+}
+
+impl Direction for FlatTopDirection {
+    fn vector(self) -> CubeVec {
+        CubeVec(Vector3::from(CUBE_DIR_VECTORS[self as usize]))
+    }
+
+    fn index(self) -> Z6 {
+        Z6::from_u8(self as u8).unwrap()
+    }
+}
+
+/// Directions for diagonal neighbours.
+#[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
+#[derive(FromPrimitive, Debug)]
+pub enum FlatTopDiagonal {
+    NorthWest = 0,
+    NorthEast = 1,
+    East      = 2,
+    SouthEast = 3,
+    SouthWest = 4,
+    West      = 5
+}
+
+impl FlatTopDiagonal {
+    pub fn vector(self) -> CubeVec {
+        CubeVec(Vector3::from(CUBE_DIA_VECTORS[self as usize]))
+    }
+}
+
+/// Directions for hexagons with pointy-top orientation in
+/// the cube coordinate system.
+#[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
+#[derive(Debug, FromPrimitive)]
+pub enum PointyTopDirection {
+    NorthWest = 0,
+    NorthEast = 1,
+    East      = 2,
+    SouthEast = 3,
+    SouthWest = 4,
+    West      = 5
+}
+
+impl Direction for PointyTopDirection {
+    fn vector(self) -> CubeVec {
+        CubeVec(Vector3::from(CUBE_DIR_VECTORS[self as usize]))
+    }
+
+    fn index(self) -> Z6 {
+        Z6::from_u8(self as u8).unwrap()
+    }
+}
+
+/// Directions for diagonal neighbours.
+#[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
+#[derive(Debug, FromPrimitive)]
+pub enum PointyTopDiagonal {
+    NorthWest = 0,
+    North     = 1,
+    NorthEast = 2,
+    SouthEast = 3,
+    South     = 4,
+    SouthWest = 5
+}
+
+impl PointyTopDiagonal {
+    pub fn vector(self) -> CubeVec {
+        CubeVec(Vector3::from(CUBE_DIA_VECTORS[self as usize]))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use quickcheck::*;
+    use num_traits::cast::FromPrimitive;
+
+    impl Arbitrary for PointyTopDirection {
+        fn arbitrary<G: Gen>(g: &mut G) -> PointyTopDirection {
+            PointyTopDirection::from_u8(g.gen_range(0,6)).unwrap()
+        }
+    }
+
+    impl Arbitrary for PointyTopDiagonal {
+        fn arbitrary<G: Gen>(g: &mut G) -> PointyTopDiagonal {
+            PointyTopDiagonal::from_u8(g.gen_range(0,6)).unwrap()
+        }
+    }
+
+    impl Arbitrary for FlatTopDirection {
+        fn arbitrary<G: Gen>(g: &mut G) -> FlatTopDirection {
+            FlatTopDirection::from_u8(g.gen_range(0,6)).unwrap()
+        }
+    }
+
+    impl Arbitrary for FlatTopDiagonal {
+        fn arbitrary<G: Gen>(g: &mut G) -> FlatTopDiagonal {
+            FlatTopDiagonal::from_u8(g.gen_range(0,6)).unwrap()
+        }
+    }
 
     #[test]
     fn test_cube_vectors_valid() {
@@ -143,138 +251,5 @@ mod tests {
         }
         quickcheck(prop as fn(_,_) -> _)
     }
-}
-
-/// Directions for hexagons with flat-top orientation in
-/// the cube coordinate system.
-pub mod flat {
-    use super::*;
-    use num_traits::cast::FromPrimitive;
-
-    /// Directions for adjacent neighbours.
-    #[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
-    #[derive(FromPrimitive, Debug)]
-    pub enum Direction {
-        North     = 0,
-        NorthEast = 1,
-        SouthEast = 2,
-        South     = 3,
-        SouthWest = 4,
-        NorthWest = 5
-    }
-
-    impl DirIndex for Direction {
-        fn vector(self) -> CubeVec {
-            CubeVec(Vector3::from(CUBE_DIR_VECTORS[self as usize]))
-        }
-
-        fn index(self) -> Z6 {
-            Z6::from_u8(self as u8).unwrap()
-        }
-    }
-
-    /// Directions for diagonal neighbours.
-    #[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
-    #[derive(FromPrimitive, Debug)]
-    pub enum Diagonal {
-        NorthWest = 0,
-        NorthEast = 1,
-        East      = 2,
-        SouthEast = 3,
-        SouthWest = 4,
-        West      = 5
-    }
-
-    impl Diagonal {
-        pub fn vector(self) -> CubeVec {
-            CubeVec(Vector3::from(CUBE_DIA_VECTORS[self as usize]))
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use quickcheck::*;
-        use num_traits::cast::FromPrimitive;
-
-        impl Arbitrary for Direction {
-            fn arbitrary<G: Gen>(g: &mut G) -> Direction {
-                Direction::from_u8(g.gen_range(0,6)).unwrap()
-            }
-        }
-
-        impl Arbitrary for Diagonal {
-            fn arbitrary<G: Gen>(g: &mut G) -> Diagonal {
-                Diagonal::from_u8(g.gen_range(0,6)).unwrap()
-            }
-        }
-    }
-}
-
-/// Directions for hexagons with pointy-top orientation in
-/// the cube coordinate system.
-pub mod pointy {
-    use super::*;
-    use num_traits::cast::FromPrimitive;
-
-    /// Directions for adjacent neighbours.
-    #[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
-    #[derive(Debug, FromPrimitive)]
-    pub enum Direction {
-        NorthWest = 0,
-        NorthEast = 1,
-        East      = 2,
-        SouthEast = 3,
-        SouthWest = 4,
-        West      = 5
-    }
-
-    impl DirIndex for Direction {
-        fn vector(self) -> CubeVec {
-            CubeVec(Vector3::from(CUBE_DIR_VECTORS[self as usize]))
-        }
-
-        fn index(self) -> Z6 {
-            Z6::from_u8(self as u8).unwrap()
-        }
-    }
-
-    /// Directions for diagonal neighbours.
-    #[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
-    #[derive(Debug, FromPrimitive)]
-    pub enum Diagonal {
-        NorthWest = 0,
-        North     = 1,
-        NorthEast = 2,
-        SouthEast = 3,
-        South     = 4,
-        SouthWest = 5
-    }
-
-    impl Diagonal {
-        pub fn vector(self) -> CubeVec {
-            CubeVec(Vector3::from(CUBE_DIA_VECTORS[self as usize]))
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        use quickcheck::*;
-        use num_traits::cast::FromPrimitive;
-
-        impl Arbitrary for Direction {
-            fn arbitrary<G: Gen>(g: &mut G) -> Direction {
-                Direction::from_u8(g.gen_range(0,6)).unwrap()
-            }
-        }
-
-        impl Arbitrary for Diagonal {
-            fn arbitrary<G: Gen>(g: &mut G) -> Diagonal {
-                Diagonal::from_u8(g.gen_range(0,6)).unwrap()
-            }
-        }
-    }
-
 }
 

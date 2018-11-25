@@ -228,6 +228,16 @@ mod tests {
         }
     }
 
+    impl Arbitrary for Rotation {
+        fn arbitrary<G: Gen>(g: &mut G) -> Rotation {
+            if g.gen() {
+                Rotation::CW
+            } else {
+                Rotation::CCW
+            }
+        }
+    }
+
     impl Arbitrary for Z6 {
         fn arbitrary<G: Gen>(g: &mut G) -> Z6 {
             Z6::from_u8(g.gen_range(0,6)).unwrap()
