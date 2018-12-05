@@ -209,6 +209,7 @@ mod tests {
     use super::*;
     use quickcheck::*;
     use num_traits::cast::FromPrimitive;
+    use rand::Rng;
 
     impl Arbitrary for PointyTopDirection {
         fn arbitrary<G: Gen>(g: &mut G) -> PointyTopDirection {

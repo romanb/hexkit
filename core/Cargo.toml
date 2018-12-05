@@ -11,5 +11,6 @@ num-derive = "^0.2"
 either = "^1.5"
 
 [dev-dependencies]
-quickcheck = "^0.6"
+# quickcheck = "^0.7"
+quickcheck = { git = "https://github.com/romanb/quickcheck" }
 rand = "^0.6"

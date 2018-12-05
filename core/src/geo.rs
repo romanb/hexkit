@@ -1,5 +1,6 @@
 //! Geometry of regular hexagons in a 2d cartesian coordinate system.
 
+use nalgebra::core::{ Matrix2 };
 use nalgebra::geometry::Point2;
 use num_traits::cast::{ FromPrimitive, ToPrimitive };
 use std::ops::{ Neg, Add, Sub };
@@ -32,9 +33,12 @@ pub struct Schema {
     pub(crate) size: f32, // side_length
     pub(crate) width: f32,
     pub(crate) height: f32,
-    pub(crate) center_xoffset: f32,
-    pub(crate) center_yoffset: f32,
+    pub(crate) center_xoffset: f32, // center_row_offset
+    pub(crate) center_yoffset: f32, // center_col_offset
+               to_pixel: Matrix2<f32>,
+               from_pixel: Matrix2<f32>,
     pub(crate) orientation: Orientation,
+               angle: f32,
 }
 
 impl Schema {
@@ -42,29 +46,45 @@ impl Schema {
         match orientation {
             Orientation::FlatTop => {
                 let height = f32::sqrt(3.0) * size;
+                let to_pixel = size * Matrix2::new(
+                    1.5,                0.,
+                    f32::sqrt(3.) / 2., f32::sqrt(3.));
+                let from_pixel = to_pixel.try_inverse().unwrap();
                 Schema {
                     size,
+                    orientation: Orientation::FlatTop,
                     width: 2.0 * size,
                     height,
                     center_xoffset: 1.5 * size,
                     center_yoffset: height,
-                    orientation,
+                    to_pixel,
+                    from_pixel,
+                    angle: 0.,
                 }
             }
             Orientation::PointyTop => {
                 let width = f32::sqrt(3.0) * size;
+                let to_pixel = size * Matrix2::new(
+                    f32::sqrt(3.), f32::sqrt(3.) / 2.,
+                    0.0,           1.5);
+                let from_pixel = to_pixel.try_inverse().unwrap();
                 Schema {
                     size,
-                    height: 2.0 * size,
+                    orientation: Orientation::PointyTop,
                     width,
+                    height: 2.0 * size,
                     center_xoffset: width,
                     center_yoffset: 1.5 * size,
-                    orientation,
+                    to_pixel,
+                    from_pixel,
+                    angle: ANGLE_RADIANS / 2.,
                 }
             }
         }
     }
+}
 
+impl Schema {
     // side_length
     pub fn size(&self) -> f32 {
         self.size
@@ -91,26 +111,41 @@ impl Schema {
     }
 
     pub fn hexagon(&self, center: Point2<f32>) -> Hexagon {
-        match self.orientation {
-            Orientation::FlatTop => Hexagon {
-                center,
-                corners: self.corners(center, 0.)
-            },
-            Orientation::PointyTop => Hexagon {
-                center,
-                corners: self.corners(center, ANGLE_RADIANS / 2.)
-            }
+        Hexagon {
+            center,
+            corners: self.corners(center, self.angle),
         }
     }
 
-    /// Compute the rectangular bounds of a hexagon on a grid.
-    pub fn bounds(&self, h: &Hexagon) -> HexBounds {
-        HexBounds {
-            x: h.center.coords.x - self.width / 2.,
-            y: h.center.coords.y - self.height / 2.,
+    /// Compute the minimal bounding box of a hexagon.
+    pub fn bounds(&self, h: &Hexagon) -> Bounds {
+        Bounds {
+            position: Point2::new(h.center.coords.x - self.width  / 2.,
+                                  h.center.coords.y - self.height / 2.),
             width: self.width,
             height: self.height
         }
+    }
+
+    /// Convert the coordinates of a hexagon on an overlaid coordinate
+    /// system into the pixel coordinates of the hexagon's center, with
+    /// ```ignore
+    /// s.to_pixel(Point2::origin()) == Point2::origin()
+    /// ```
+    /// for every schema `s`.
+    pub fn to_pixel<P: Into<Point2<f32>>>(&self, p: P) -> Point2<f32> {
+        let c = self.to_pixel * p.into().coords;
+        Point2::from_coordinates(c)
+    }
+
+    /// Convert pixel coordinates into hexagon coordinates, satisfying
+    /// ```ignore
+    /// s.from_pixel(s.to_pixel(p)) == p
+    /// ```
+    /// for any point `p` and schema `s`.
+    pub fn from_pixel<P: From<Point2<f32>>>(&self, p: Point2<f32>) -> P {
+        let c = self.from_pixel * p.coords;
+        P::from(Point2::from_coordinates(c))
     }
 
     fn corners(&self, center: Point2<f32>, off: f32) -> [Point2<f32>; 6] {
@@ -161,12 +196,34 @@ impl Hexagon {
     }
 }
 
-/// The rectangular bounds of a hexagon.
-pub struct HexBounds {
-    pub x: f32,
-    pub y: f32,
+pub struct Line([Point2<f32>; 2]);
+
+impl Line {
+    pub fn bounds(&self) -> Bounds {
+        Bounds {
+            position: Point2::new(f32::min(self.0[0].x, self.0[1].x),
+                                  f32::min(self.0[0].y, self.0[1].y)),
+            width: (self.0[0].x - self.0[1].x).abs(),
+            height: (self.0[0].y - self.0[1].y).abs(),
+        }
+    }
+}
+
+/// A (minimal) bounding box for geometric shapes.
+pub struct Bounds {
+    /// The top-left corner of the bounding box.
+    pub position: Point2<f32>,
     pub width: f32,
     pub height: f32
+}
+
+impl Bounds {
+    /// Test whether a point lies within the bounds.
+    pub fn contains(&self, p: Point2<f32>) -> bool {
+        self.position.x <= p.x && p.x <= self.position.x + self.width
+            &&
+        self.position.y <= p.y && p.y <= self.position.y + self.height
+    }
 }
 
 /// The additive group of integers modulo 6, i.e. Z/6Z,
@@ -217,24 +274,18 @@ impl Sub<Z6> for Z6 {
 mod tests {
     use super::*;
     use quickcheck::*;
+    use rand::Rng;
+    use rand::seq::SliceRandom;
 
     impl Arbitrary for Orientation {
         fn arbitrary<G: Gen>(g: &mut G) -> Orientation {
-            if g.gen() {
-                Orientation::FlatTop
-            } else {
-                Orientation::PointyTop
-            }
+            *[Orientation::FlatTop, Orientation::PointyTop].choose(g).unwrap()
         }
     }
 
     impl Arbitrary for Rotation {
         fn arbitrary<G: Gen>(g: &mut G) -> Rotation {
-            if g.gen() {
-                Rotation::CW
-            } else {
-                Rotation::CCW
-            }
+            *[Rotation::CW, Rotation::CCW].choose(g).unwrap()
         }
     }
 
@@ -275,6 +326,44 @@ mod tests {
     fn prop_z6_commutativity() {
         fn prop(z1: Z6, z2: Z6) -> bool {
             z1 + z2 == z2 + z1
+        }
+        quickcheck(prop as fn(_,_) -> _);
+    }
+
+    #[test]
+    fn prop_from_to_pixel_identity() {
+        fn round(p: Point2<f32>) -> Point2<i16> {
+            Point2::new(p.x.round() as i16, p.y.round() as i16)
+        }
+        fn prop(x: i16, y: i16, o: Orientation) -> bool {
+            let s = Schema::new(1.0, o);
+            let p = Point2::new(x as f32, y as f32);
+            round(s.from_pixel(s.to_pixel(p))) == round(p)
+        }
+        quickcheck(prop as fn(_,_,_) -> _);
+    }
+
+    #[test]
+    fn prop_to_pixel_distance() {
+        // The distances of the x and y coordinates of any
+        // two hexagon center's must be a multiple of (half of)
+        // the x respectively y distance between the centers
+        // of adjacent hexagons, as defined by the schema.
+        fn prop(cs: Vec<(i16,i16)>, o: Orientation) -> bool {
+            let s = Schema::new(1.0, o);
+            cs.iter().all(|c1| {
+                cs.iter().all(|c2| {
+                    let p1 = s.to_pixel(Point2::new(c1.0 as f32, c1.1 as f32));
+                    let p2 = s.to_pixel(Point2::new(c2.0 as f32, c2.1 as f32));
+                    let dx = (p1.x - p2.x).abs();
+                    let dy = (p1.y - p2.y).abs();
+                    let nx = dx / (s.center_xoffset / 2.);
+                    let ny = dy / (s.center_yoffset / 2.);
+                    let ex = (nx - nx.round()).abs();
+                    let ey = (ny - ny.round()).abs();
+                    ex < 0.02 && ey < 0.02
+                })
+            })
         }
         quickcheck(prop as fn(_,_) -> _);
     }

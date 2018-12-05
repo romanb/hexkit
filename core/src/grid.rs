@@ -2,63 +2,156 @@
 pub mod axial;
 pub mod cube;
 pub mod offset;
+pub mod shape;
 
 pub use self::cube::*;
-pub use crate::geo::*;
+pub use geo::*;
 
+use nalgebra::geometry::Point2;
 use num_traits::bounds::Bounded;
-use std::collections::HashMap;
+use std::fmt::Display;
+
 use std::hash::Hash;
+use std::fmt::Debug;
+use std::collections::HashMap;
+use nalgebra::core::Vector2;
+use grid::shape::*;
 
-/// A grid is a contiguous arrangement of hexagonal tiles with
-/// an overlaid coordinate system.
-pub trait Grid<C> where C: Coords + Hash {
+pub trait Coords: From<Cube> + Into<Cube>
+    + Eq + Copy + Debug + Display + Hash {}
+
+pub trait Store<C: Coords> {
     fn schema(&self) -> &Schema;
-    fn tiles(&self) -> &HashMap<C, Hexagon>; // HashMap<C, Tile<S>>
 
-    fn visible_tiles<'a>(&'a self, vp: &'a Viewport)
-            -> Box<Iterator<Item=(&C,&Hexagon)> + 'a> {
-        Box::new(self.tiles().iter().filter(move |(_, hex)|
-            vp.visible(&self.schema().bounds(&hex))))
+    fn get(&self, o: C) -> Option<&Hexagon>;
+
+    fn iter(&self) -> Box<dyn Iterator<Item=(&C, &Hexagon)> + '_>;
+
+    fn iter_visible<'a>(&'a self, vp: &'a Viewport)
+        -> Box<dyn Iterator<Item=(&C, &Hexagon)> + 'a>
+    {
+        Box::new(self.iter().filter(
+            move |(_, hex)|
+                vp.visible(&self.schema().bounds(&hex))))
     }
 }
 
-pub struct Tile<S> {
-    pub hex: Hexagon,
-    pub state: S,
+pub struct HashMapStore<C: Coords + Hash> {
+    schema: Schema,
+    hexagons: HashMap<C, Hexagon>,
 }
 
-/// Coordinates on a grid. A grid coordinate system must support
-/// conversion to and from cube coordinates.
-pub trait Coords: Eq + Copy {
-    /// The type of the underlying grid.
-    type Grid;
+impl<C: Coords + Hash> Store<C> for HashMapStore<C> {
+    fn schema(&self) -> &Schema {
+        &self.schema
+    }
 
-    /// Convert the coordinates to cube coordinates. This conversion
-    /// must not fail, i.e. every coordinate system must be fully
-    /// "embedded" in the cube coordinate system.
-    fn to_cube(self, grid: &Self::Grid) -> Cube;
+    fn get(&self, c: C) -> Option<&Hexagon> {
+        self.hexagons.get(&c)
+    }
 
-    /// Convert from cube coordinates. If the cube coordinates do not
-    /// represent valid coordinates for this coordinate system and
-    /// the given grid, `None` should be returned.
-    fn from_cube(cube: Cube, grid: &Self::Grid) -> Option<Self>;
+    fn iter(&self) -> Box<dyn Iterator<Item=(&C, &Hexagon)> + '_> {
+        Box::new(self.hexagons.iter())
+    }
 }
 
-/// A viewport defines the visible region of a grid.
-pub struct Viewport {
-    pub x: f32,
-    pub y: f32,
+/// A grid is a contiguous arrangement of hexagonal tiles with
+/// an overlaid coordinate system.
+#[derive(Clone, Debug)]
+pub struct Grid<C: Coords> {
+    schema: Schema,
+    hexagons: HashMap<C, Hexagon>, // impl Store<C>
+    width: f32,
+    height: f32,
+    pixel_offset: Vector2<f32>,
+}
+
+impl<C: Coords> Grid<C> {
+    pub fn new(schema: Schema, shape: ShapeIter<impl Iterator<Item=Cube> + Clone>) -> Grid<C> {
+        let mut hexagons = HashMap::with_capacity(shape.total);
+        let bounds = {
+            let centers = shape.clone().map(|c| c.to_pixel(&schema));
+            let min_max = ((0.,0.), (0.,0.));
+            centers.fold(min_max, |((min_x, max_x),(min_y, max_y)), c| {
+                 let new_min_x = f32::min(min_x, c.x);
+                 let new_max_x = f32::max(max_x, c.x);
+                 let new_min_y = f32::min(min_y, c.y);
+                 let new_max_y = f32::max(max_y, c.y);
+                 ((new_min_x, new_max_x), (new_min_y, new_max_y))
+            })
+        };
+        let offset_x = ((bounds.0).0 - schema.width / 2.).abs();
+        let offset_y = ((bounds.1).0 - schema.height / 2.).abs();
+        let width = (bounds.0).1 - (bounds.0).0 + schema.width;
+        let height = (bounds.1).1 - (bounds.1).0 + schema.height;
+        let pixel_offset = Vector2::new(offset_x, offset_y);
+        hexagons.extend(shape.map(|c| {
+            let p = c.to_pixel(&schema) + pixel_offset;
+            (C::from(c), schema.hexagon(p))
+        }));
+        Grid {
+            schema,
+            hexagons,
+            width,
+            height,
+            pixel_offset,
+        }
+    }
+
+    pub fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    pub fn from_pixel(&self, p: Point2<f32>) -> Option<C> {
+        // TODO: lookup coords
+        Some(C::from(Cube::from_pixel(p - self.pixel_offset, self.schema())))
+    }
+
+    pub fn to_pixel(&self, c: C) -> Point2<f32> {
+        c.into().to_pixel(self.schema())
+    }
+
+    pub fn tile(&self, o: C) -> Option<&Hexagon> {
+        self.hexagons.get(&o)
+    }
+
+    pub fn tiles(&self) -> Box<dyn Iterator<Item=(&C, &Hexagon)> + '_> {
+        Box::new(self.hexagons.iter())
+    }
+
+    pub fn visible_tiles<'a>(&'a self, vp: &'a Viewport)
+        -> Box<dyn Iterator<Item=(&C, &Hexagon)> + 'a>
+    {
+        Box::new(self.tiles().filter(
+            move |(_, hex)| vp.visible(&self.schema().bounds(&hex))
+        ))
+    }
+
+    pub fn width(&self) -> f32 {
+        self.width
+    }
+
+    pub fn height(&self) -> f32 {
+        self.height
+    }
+}
+
+/// A viewport defines a visible, rectangular region of a grid.
+#[derive(Copy, Clone, Debug)]
+pub struct Viewport { // TODO: newtype on Bounds?
+    pub position: Point2<f32>,
     pub width: f32,
     pub height: f32
 }
 
 impl Viewport {
-    pub fn visible(&self, b: &HexBounds) -> bool {
-        self.x               < b.x + b.width  &&
-        self.x + self.width  > b.x            &&
-        self.y               < b.y + b.height &&
-        self.y + self.height > b.y
+    /// Check whether the given bounds intersect with the viewport,
+    /// i.e. if any points within the bounds are visible.
+    pub fn visible(&self, b: &Bounds) -> bool {
+        self.position.x               < b.position.x + b.width  &&
+        self.position.x + self.width  > b.position.x            &&
+        self.position.y               < b.position.y + b.height &&
+        self.position.y + self.height > b.position.y
     }
 }
 

@@ -1,91 +1,12 @@
 
-use nalgebra::geometry::Point2;
-use std::collections::HashMap;
-use std::u16;
+use std::fmt;
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
+
 use super::*;
 
-/// Staggering for even or odd columns or rows, i.e. whether even or odd
-/// columns or rows are offset from the top or left border of the grid,
-/// respectively.
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum Stagger {
-    Even, Odd
-}
-
-/// A rectangular grid that expands from the origin at the top-left
-/// corner rightwards and downwards, using offset coordinates.
-#[derive(Clone, Debug)]
-pub struct OffsetGrid {
-    cols: u16,
-    rows: u16,
-    schema: Schema,
-    stagger: Stagger,
-    hexagons: HashMap<Offset, Hexagon>
-}
-
-impl Grid<Offset> for OffsetGrid {
-    fn schema(&self) -> &Schema {
-        &self.schema
-    }
-
-    fn tiles(&self) -> &HashMap<Offset, Hexagon> {
-        &self.hexagons
-    }
-}
-
-impl OffsetGrid {
-
-    /// A rectangular grid that expands from the origin at the top-left corner
-    /// in rows and columns, using offset coordinates.
-    pub fn new(cols: u16, rows: u16, schema: Schema, stagger: Stagger) -> OffsetGrid {
-        let hexagons = match schema.orientation {
-            Orientation::FlatTop   => Self::mk_flat(cols, rows, &schema, stagger),
-            Orientation::PointyTop => Self::mk_pointy(cols, rows, &schema, stagger)
-        };
-        OffsetGrid { cols, rows, schema, stagger, hexagons }
-    }
-
-    fn mk_flat(cols: u16, rows: u16, schema: &Schema, stagger: Stagger)
-            -> HashMap<Offset, Hexagon> {
-        let num = cols as usize * rows as usize;
-        let mut hexagons = HashMap::with_capacity(num);
-        for col in 0..cols {
-            let ystag = match stagger {
-                Stagger::Odd  => if col & 1 == 1 { schema.height / 2. } else { 0. }
-                Stagger::Even => if col & 1 == 0 { schema.height / 2. } else { 0. }
-            };
-            for row in 0..rows {
-                let center = Point2::new(
-                    schema.size + col as f32 * schema.center_xoffset,
-                    schema.height / 2. + row as f32 * schema.center_yoffset + ystag);
-                let hex = schema.hexagon(center);
-                let off = Offset { col, row };
-                hexagons.insert(off, hex);
-            }
-        }
-        hexagons
-    }
-
-    fn mk_pointy(cols: u16, rows: u16, schema: &Schema, stagger: Stagger) -> HashMap<Offset, Hexagon> {
-        let num = cols as usize * rows as usize;
-        let mut hexagons = HashMap::with_capacity(num);
-        for row in 0..rows {
-            let xstag = match stagger {
-                Stagger::Odd  => if row & 1 == 1 { schema.width / 2. } else { 0. }
-                Stagger::Even => if row & 1 == 0 { schema.width / 2. } else { 0. }
-            };
-            for col in 0..cols {
-                let center = Point2::new(
-                    schema.width / 2. + col as f32 * schema.center_xoffset + xstag,
-                    schema.size + row as f32 * schema.center_yoffset);
-                let hex = schema.hexagon(center);
-                let off = Offset { col, row };
-                hexagons.insert(off, hex);
-            }
-        }
-        hexagons
-    }
-}
+pub trait OffsetType: Debug + Hash + Eq + Copy + Clone + Send + 'static {}
 
 /// Offset coordinates.
 ///
@@ -93,92 +14,97 @@ impl OffsetGrid {
 ///
 /// [Offset Coordinates]: https://www.redblobgames.com/grids/hexagons/#coordinates-offset
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub struct Offset {
-    pub col: u16, // TODO: i16, i.e. support negative offsets?
-    pub row: u16
+pub struct Offset<T: OffsetType> {
+    pub col: i32,
+    pub row: i32,
+        _ty: PhantomData<T>,
 }
 
-impl Offset {
-    const MIN: i32 = 0;
-    const MAX: i32 = u16::MAX as i32;
+impl<T: OffsetType> Coords for Offset<T>
+where Offset<T>: From<Cube> + Into<Cube> {}
 
-    pub fn new(col: u16, row: u16) -> Offset {
-        Offset { col, row }
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub struct OddCol;
+impl OffsetType for OddCol {}
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub struct OddRow;
+impl OffsetType for OddRow {}
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub struct EvenCol;
+impl OffsetType for EvenCol {}
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+pub struct EvenRow;
+impl OffsetType for EvenRow {}
+
+impl<T: OffsetType> Offset<T> {
+    pub fn new(col: i32, row: i32) -> Offset<T> {
+        Offset { col, row, _ty: PhantomData }
     }
 }
 
-impl Coords for Offset {
-    type Grid = OffsetGrid;
-
-    fn to_cube(self, grid: &OffsetGrid) -> Cube {
-        let (col, row) = (self.col as i32, self.row as i32);
-        match grid.schema.orientation {
-            Orientation::FlatTop => match grid.stagger {
-                Stagger::Odd => {
-                    let z = row - ((col - (col & 1)) / 2);
-                    Cube::new_xz(col, z)
-                }
-                Stagger::Even => {
-                    let z = row - (col + (col & 1)) / 2;
-                    Cube::new_xz(col, z)
-                }
-            }
-            Orientation::PointyTop => match grid.stagger {
-                Stagger::Odd => {
-                    let x = col - (row - (row & 1)) / 2;
-                    Cube::new_xz(x, row)
-                }
-                Stagger::Even => {
-                    let x = col - (row + (row & 1)) / 2;
-                    Cube::new_xz(x, row)
-                }
-            }
-        }
+impl From<Cube> for Offset<OddCol> {
+    fn from(c: Cube) -> Self {
+        let col = c.x();
+        let row = c.z() + (col - (col & 1)) / 2;
+        Offset { col, row, _ty: PhantomData }
     }
+}
 
-    fn from_cube(cube: Cube, grid: &OffsetGrid) -> Option<Offset> {
-        // 0, 1, -1
-        let (x, z) = (cube.x(), cube.z());
-        let (col, row) = match grid.schema.orientation {
-            Orientation::FlatTop => match grid.stagger {
-                Stagger::Odd => {
-                    let col = x;
-                    let row = z + (x - (x & 1)) / 2;
-                    (col, row)
-                }
-                Stagger::Even => {
-                    let col = x;
-                    let row = z + (x + (x & 1)) / 2;
-                    (col, row)
-                }
-            }
-            Orientation::PointyTop => match grid.stagger {
-                Stagger::Odd => {
-                    let col = x + (z - (z & 1)) / 2;
-                    let row = z;
-                    (col, row)
-                }
-                Stagger::Even => {
-                    let col = x + (z + (z & 1)) / 2;
-                    let row = z;
-                    (col, row)
-                }
-            }
-        };
-        if Self::MIN <= col && col <= Self::MAX &&
-                Self::MIN <= row && row <= Self::MAX {
-            let o = Offset {
-                col: col as u16,
-                row: row as u16
-            };
-            if o.col <= grid.cols - 1 && o.row <= grid.rows {
-                Some(o)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+impl From<Offset<OddCol>> for Cube {
+    fn from(o: Offset<OddCol>) -> Cube {
+        let z = o.row - ((o.col - (o.col & 1)) / 2);
+        Cube::new_xz(o.col, z)
+    }
+}
+
+impl From<Cube> for Offset<EvenCol> {
+    fn from(c: Cube) -> Self {
+        let col = c.x();
+        let row = c.z() + (col + (col & 1)) / 2;
+        Offset { col, row, _ty: PhantomData }
+    }
+}
+
+impl From<Offset<EvenCol>> for Cube {
+    fn from(o: Offset<EvenCol>) -> Cube {
+        let z = o.row - (o.col + (o.col & 1)) / 2;
+        Cube::new_xz(o.col, z)
+    }
+}
+
+impl From<Cube> for Offset<OddRow> {
+    fn from(c: Cube) -> Self {
+        let row = c.z();
+        let col = c.x() + (row - (row & 1)) / 2;
+        Offset { col, row, _ty: PhantomData }
+    }
+}
+
+impl From<Offset<OddRow>> for Cube {
+    fn from(o: Offset<OddRow>) -> Cube {
+        let x = o.col - (o.row - (o.row & 1)) / 2;
+        Cube::new_xz(x, o.row)
+    }
+}
+
+impl From<Cube> for Offset<EvenRow> {
+    fn from(c: Cube) -> Self {
+        let row = c.z();
+        let col = c.x() + (row + (row & 1)) / 2;
+        Offset { col, row, _ty: PhantomData }
+    }
+}
+
+impl From<Offset<EvenRow>> for Cube {
+    fn from(o: Offset<EvenRow>) -> Cube {
+        let x = o.col - (o.row + (o.row & 1)) / 2;
+        Cube::new_xz(x, o.row)
+    }
+}
+
+impl<T: OffsetType> fmt::Display for Offset<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({},{})", self.col, self.row)
     }
 }
 
@@ -187,36 +113,32 @@ mod tests {
     use geo::*;
     use super::*;
     use quickcheck::*;
+    use rand::Rng;
 
-    impl Arbitrary for Stagger {
-        fn arbitrary<G: Gen>(g: &mut G) -> Stagger {
-            if g.gen() {
-                Stagger::Even
-            } else {
-                Stagger::Odd
-            }
-        }
-    }
-
-    impl Arbitrary for OffsetGrid {
-        fn arbitrary<G: Gen>(g: &mut G) -> OffsetGrid {
+    impl<T: OffsetType> Arbitrary for Grid<Offset<T>>
+    where Offset<T>: Coords {
+        fn arbitrary<G: Gen>(g: &mut G) -> Grid<Offset<T>> {
             let cols = g.gen_range(0, 100);
             let rows = g.gen_range(0, 100);
             let orientation = Orientation::arbitrary(g);
-            let stagger = Stagger::arbitrary(g);
             let schema = Schema::new(50., orientation);
-            OffsetGrid::new(cols, rows, schema, stagger)
+            Grid::new(schema, shape::rect_xz_odd(rows, cols))
         }
     }
 
     #[test]
     fn prop_from_to_cube_identity() {
-        fn prop(g: OffsetGrid) -> bool {
-            g.tiles().keys().into_iter().all(|o| {
-                Offset::from_cube(o.to_cube(&g), &g) == Some(*o)
+        fn prop<T: OffsetType>(g: Grid<Offset<T>>) -> bool
+        where Offset<T>: Coords {
+            g.tiles().all(|(&o,_)| {
+                let c: Cube = o.into();
+                Offset::from(c) == o
             })
         }
-        quickcheck(prop as fn(OffsetGrid) -> bool);
+        quickcheck(prop as fn(Grid<Offset<OddCol>>)  -> _);
+        quickcheck(prop as fn(Grid<Offset<OddRow>>)  -> _);
+        quickcheck(prop as fn(Grid<Offset<EvenCol>>) -> _);
+        quickcheck(prop as fn(Grid<Offset<EvenRow>>) -> _);
     }
 }
 

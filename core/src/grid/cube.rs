@@ -5,7 +5,7 @@ pub mod vec;
 use nalgebra::geometry::Point3;
 
 use std::collections::HashSet;
-use std::ops::{ Add, Sub, RangeInclusive };
+use std::ops::{ Add, Sub };
 use std::cmp::{ Ordering, min, max };
 use std::iter;
 
@@ -88,10 +88,10 @@ impl Cube {
         let mut v   = Vec::with_capacity(Self::num_in_range(r));
         let x_end   = r as i32;
         let x_start = -x_end;
-        for x in RangeInclusive::new(x_start, x_end) {
+        for x in x_start ..= x_end {
             let y_start = max(x_start, -x - x_end);
             let y_end   = min(x_end,   -x + x_end);
-            for y in RangeInclusive::new(y_start, y_end) {
+            for y in y_start ..= y_end {
                 v.push(*self + CubeVec::new_xy(x, y));
             }
         }
@@ -124,10 +124,10 @@ impl Cube {
         let y_max = min(self.y() + n, other.y() + n);
         let z_min = max(self.z() - n, other.z() - n);
         let z_max = min(self.z() + n, other.z() + n);
-        for x in RangeInclusive::new(x_min, x_max) {
+        for x in x_min ..= x_max {
             let y_start = max(y_min, -x - z_max);
             let y_end   = min(y_max, -x - z_min);
-            for y in RangeInclusive::new(y_start, y_end) {
+            for y in y_start ..= y_end {
                 v.push(Cube::new_xy(x, y));
             }
         }
@@ -181,9 +181,8 @@ impl Cube {
     }
 
     fn mk(x: i32, y: i32, z: i32) -> Cube {
-        let c = Cube { p: Point3::new(x, y, z) };
-        debug_assert!(c.is_valid());
-        c
+        debug_assert!(x + y + z == 0);
+        Cube { p: Point3::new(x, y, z) }
     }
 
     pub fn lerp(&self, other: Cube, t: Frac1) -> Cube {
@@ -211,8 +210,41 @@ impl Cube {
 
     /// Validity check for the cube coordinates, i.e. that they
     /// represent a point in the plane defined by `x + y + z = 0`.
+    #[cfg(test)]
     fn is_valid(&self) -> bool {
         self.x() + self.y() + self.z() == 0
+    }
+
+    /// Compute the center of the hexagon with these cube coordinates
+    /// in the context of the given geometric schema and satisfying
+    /// ```ignore
+    /// Cube::origin().to_pixel(&s) == Point2::origin()
+    /// ```
+    /// for every schema `s`.
+    pub fn to_pixel(self, schema: &Schema) -> Point2<f32> {
+        schema.to_pixel(self)
+    }
+
+    /// Compute the (nearest) cube coordinates for a point in the
+    /// context of the given geometric schema, satisfying
+    /// ```ignore
+    /// Cube::from_pixel(c.to_point(&s), &s) == c
+    /// ```
+    /// for any cube coordinates `c` and schema `s`.
+    pub fn from_pixel(p: Point2<f32>, schema: &Schema) -> Cube {
+        schema.from_pixel(p)
+    }
+}
+
+impl From<Point2<f32>> for Cube {
+    fn from(p: Point2<f32>) -> Cube {
+        Cube::round(p.x, -p.x - p.y, p.y)
+    }
+}
+
+impl From<Cube> for Point2<f32> {
+    fn from(c: Cube) -> Point2<f32> {
+        Point2::new(c.p.x as f32, c.p.z as f32)
     }
 }
 
@@ -245,7 +277,7 @@ impl Iterator for LineIterator {
 
 impl ExactSizeIterator for LineIterator {}
 
-/// Linear interpolation.
+/// Linear interpolation of a coordinate.
 fn lerp(ai: i32, bi: i32, fr: Frac1) -> f32 {
     let (a, b, t) = (ai as f32, bi as f32, f32::from(fr));
     a + (b - a) * t
@@ -413,7 +445,7 @@ mod tests {
 
     #[test]
     fn prop_walk_ring() {
-        fn prop(c: Cube, r: u16, d: flat::Direction) -> bool {
+        fn prop(c: Cube, r: u16, d: FlatTopDirection) -> bool {
             let cw = c.walk_ring(d, r, Rotation::CW).collect::<Vec<_>>();
             let (cw_head, cw_tail) = (cw.first(), cw.iter().skip(1));
 
@@ -431,13 +463,31 @@ mod tests {
 
     #[test]
     fn prop_walk_range() {
-        fn prop(c: Cube, r: u16, d: flat::Direction, rot: Rotation) -> bool {
+        fn prop(c: Cube, r: u16, d: FlatTopDirection, rot: Rotation) -> bool {
             c.walk_range(d, r, rot)
                 .collect::<HashSet<_>>()
                 ==
                 c.range(r).collect::<HashSet<_>>()
         }
         quickcheck(prop as fn(_,_,_,_) -> _);
+    }
+
+    #[test]
+    fn prop_cube_to_pixel_origin() {
+        fn prop(o: Orientation, s: f32) -> bool {
+            let s = Schema::new(s, o);
+            Cube::origin().to_pixel(&s) == Point2::origin()
+        }
+        quickcheck(prop as fn(_,_) -> _);
+    }
+
+    #[test]
+    fn prop_cube_from_to_pixel_identity() {
+        fn prop(c: Cube, o: Orientation) -> bool {
+            let s = Schema::new(1.0, o);
+            Cube::from_pixel(c.to_pixel(&s), &s) == c
+        }
+        quickcheck(prop as fn(_,_) -> _);
     }
 }
 
