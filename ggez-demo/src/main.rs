@@ -174,7 +174,7 @@ impl EventHandler for State {
 
     fn mouse_motion_event(&mut self, ctx: &mut Context, _state: MouseState, x: i32, y: i32, _xrel: i32, _yrel: i32) {
         // self.update.hover = self.view.from_pixel(x, y);
-        self.hover = self.view.from_pixel(x, y);
+        self.hover = self.view.from_pixel(x, y).map(|(c,h)| c);
         println!("{:?}", self.hover);
         let bounds = match get_size(ctx) {
             (w,h) => Bounds {
@@ -205,7 +205,7 @@ fn main() -> Result<(), GameError> {
 
     // ggez::mouse::set_grabbed(ctx, true);
 
-    let schema = Schema::new(50., Orientation::FlatTop);
+    let schema = Schema::new(SideLength(50.), Orientation::FlatTop);
     let grid = Grid::new(schema, shape::rect_xz_odd(30,30));
     let bounds = Bounds {
         position: Point2::new(100., 100.),

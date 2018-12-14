@@ -33,3 +33,20 @@ impl From<Axial> for Cube {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck::*;
+
+    #[test]
+    fn prop_from_to_cube_identity() {
+        fn prop(g: Grid<Axial>) -> bool {
+            g.iter().all(|(&a,_)| {
+                let c: Cube = a.into();
+                Axial::from(c) == a
+            })
+        }
+        quickcheck(prop as fn(_)  -> _);
+    }
+}
+

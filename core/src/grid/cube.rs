@@ -8,6 +8,7 @@ use std::collections::HashSet;
 use std::ops::{ Add, Sub };
 use std::cmp::{ Ordering, min, max };
 use std::iter;
+use std::fmt;
 
 use super::*;
 use self::vec::*;
@@ -236,6 +237,14 @@ impl Cube {
     }
 }
 
+impl Coords for Cube {}
+
+impl fmt::Display for Cube {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({},{},{})", self.p.x, self.p.y, self.p.z)
+    }
+}
+
 impl From<Point2<f32>> for Cube {
     fn from(p: Point2<f32>) -> Cube {
         Cube::round(p.x, -p.x - p.y, p.y)
@@ -278,6 +287,7 @@ impl Iterator for LineIterator {
 impl ExactSizeIterator for LineIterator {}
 
 /// Linear interpolation of a coordinate.
+/// TODO: Move to mod geo
 fn lerp(ai: i32, bi: i32, fr: Frac1) -> f32 {
     let (a, b, t) = (ai as f32, bi as f32, f32::from(fr));
     a + (b - a) * t
@@ -474,8 +484,8 @@ mod tests {
 
     #[test]
     fn prop_cube_to_pixel_origin() {
-        fn prop(o: Orientation, s: f32) -> bool {
-            let s = Schema::new(s, o);
+        fn prop(o: Orientation, l: SideLength) -> bool {
+            let s = Schema::new(l, o);
             Cube::origin().to_pixel(&s) == Point2::origin()
         }
         quickcheck(prop as fn(_,_) -> _);
@@ -483,11 +493,11 @@ mod tests {
 
     #[test]
     fn prop_cube_from_to_pixel_identity() {
-        fn prop(c: Cube, o: Orientation) -> bool {
-            let s = Schema::new(1.0, o);
+        fn prop(c: Cube, s: SideLength, o: Orientation) -> bool {
+            let s = Schema::new(s, o);
             Cube::from_pixel(c.to_pixel(&s), &s) == c
         }
-        quickcheck(prop as fn(_,_) -> _);
+        quickcheck(prop as fn(_,_,_) -> _);
     }
 }
 

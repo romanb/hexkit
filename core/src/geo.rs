@@ -1,6 +1,6 @@
 //! Geometry of regular hexagons in a 2d cartesian coordinate system.
 
-use nalgebra::core::{ Matrix2 };
+use nalgebra::core::Matrix2;
 use nalgebra::geometry::Point2;
 use num_traits::cast::{ FromPrimitive, ToPrimitive };
 use std::ops::{ Neg, Add, Sub };
@@ -27,39 +27,50 @@ pub enum Rotation {
     CCW
 }
 
+#[derive(PartialEq, Copy, Clone, PartialOrd, Debug)]
+pub struct SideLength(pub f32);
+
+impl From<SideLength> for f32 {
+    fn from(s: SideLength) -> f32 {
+        s.0
+    }
+}
+
 /// A schematic for a regular hexagon.
 #[derive(Clone, Debug)]
 pub struct Schema {
-    pub(crate) size: f32, // side_length
+    pub(crate) side_len: SideLength,
     pub(crate) width: f32,
     pub(crate) height: f32,
-    pub(crate) center_xoffset: f32, // center_row_offset
-    pub(crate) center_yoffset: f32, // center_col_offset
+    pub(crate) center_row_offset: f32,
+    pub(crate) center_col_offset: f32,
                to_pixel: Matrix2<f32>,
                from_pixel: Matrix2<f32>,
     pub(crate) orientation: Orientation,
-               angle: f32,
+               first_corner_angle: f32,
 }
 
 impl Schema {
-    pub fn new(size: f32, orientation: Orientation) -> Schema {
+    pub fn new(side_len: SideLength, orientation: Orientation) -> Schema {
+        let size = side_len.0;
+        assert!(size > 0., "size <= 0");
         match orientation {
             Orientation::FlatTop => {
                 let height = f32::sqrt(3.0) * size;
-                let to_pixel = size * Matrix2::new(
+                let to_pixel = side_len.0 * Matrix2::new(
                     1.5,                0.,
                     f32::sqrt(3.) / 2., f32::sqrt(3.));
                 let from_pixel = to_pixel.try_inverse().unwrap();
                 Schema {
-                    size,
+                    side_len,
                     orientation: Orientation::FlatTop,
                     width: 2.0 * size,
                     height,
-                    center_xoffset: 1.5 * size,
-                    center_yoffset: height,
+                    center_col_offset: 1.5 * size,
+                    center_row_offset: height,
                     to_pixel,
                     from_pixel,
-                    angle: 0.,
+                    first_corner_angle: 0.,
                 }
             }
             Orientation::PointyTop => {
@@ -69,15 +80,15 @@ impl Schema {
                     0.0,           1.5);
                 let from_pixel = to_pixel.try_inverse().unwrap();
                 Schema {
-                    size,
+                    side_len,
                     orientation: Orientation::PointyTop,
                     width,
                     height: 2.0 * size,
-                    center_xoffset: width,
-                    center_yoffset: 1.5 * size,
+                    center_col_offset: width,
+                    center_row_offset: 1.5 * size,
                     to_pixel,
                     from_pixel,
-                    angle: ANGLE_RADIANS / 2.,
+                    first_corner_angle: ANGLE_RADIANS / 2.,
                 }
             }
         }
@@ -85,9 +96,8 @@ impl Schema {
 }
 
 impl Schema {
-    // side_length
-    pub fn size(&self) -> f32 {
-        self.size
+    pub fn side_len(&self) -> f32 {
+        self.side_len.0
     }
 
     pub fn width(&self) -> f32 {
@@ -98,12 +108,12 @@ impl Schema {
         self.height
     }
 
-    pub fn center_xoffset(&self) -> f32 {
-        self.center_xoffset
+    pub fn center_col_offset(&self) -> f32 {
+        self.center_col_offset
     }
 
-    pub fn center_yoffset(&self) -> f32 {
-        self.center_yoffset
+    pub fn center_row_offset(&self) -> f32 {
+        self.center_row_offset
     }
 
     pub fn orientation(&self) -> Orientation {
@@ -113,7 +123,7 @@ impl Schema {
     pub fn hexagon(&self, center: Point2<f32>) -> Hexagon {
         Hexagon {
             center,
-            corners: self.corners(center, self.angle),
+            corners: self.corners(center, self.first_corner_angle),
         }
     }
 
@@ -160,13 +170,13 @@ impl Schema {
 
     fn corner(&self, center: Point2<f32>, i: u8, off: f32) -> Point2<f32> {
         let angle_rad = ANGLE_RADIANS * i as f32 - off;
-        let x = center.x + self.size * angle_rad.cos();
-        let y = center.y + self.size * angle_rad.sin();
+        let x = center.x + self.side_len() * angle_rad.cos();
+        let y = center.y + self.side_len() * angle_rad.sin();
         Point2::new(x, y)
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Hexagon {
     pub(crate) center: Point2<f32>,
     pub(crate) corners: [Point2<f32>; 6],
@@ -210,6 +220,7 @@ impl Line {
 }
 
 /// A (minimal) bounding box for geometric shapes.
+#[derive(Copy, Clone, Debug)]
 pub struct Bounds {
     /// The top-left corner of the bounding box.
     pub position: Point2<f32>,
@@ -218,11 +229,38 @@ pub struct Bounds {
 }
 
 impl Bounds {
+    /// Check whether the two bounds intersect.
+    pub fn intersects(&self, b: &Bounds) -> bool {
+        self.position.x               < b.position.x + b.width  &&
+        self.position.x + self.width  > b.position.x            &&
+        self.position.y               < b.position.y + b.height &&
+        self.position.y + self.height > b.position.y
+    }
+
     /// Test whether a point lies within the bounds.
     pub fn contains(&self, p: Point2<f32>) -> bool {
         self.position.x <= p.x && p.x <= self.position.x + self.width
             &&
         self.position.y <= p.y && p.y <= self.position.y + self.height
+    }
+
+    /// Test whether the bounds lie completely within other bounds.
+    pub fn within(&self, other: &Bounds) -> bool {
+        let min_x = other.position.x;
+        let max_x = min_x + other.width;
+        let min_y = other.position.y;
+        let max_y = min_y + other.height;
+        min_x <= self.position.x && self.position.x + self.width <= max_x
+            &&
+        min_y <= self.position.y && self.position.y + self.height <= max_y
+    }
+
+    pub fn floor(&self) -> Bounds {
+        Bounds {
+            position: Point2::new(self.position.x.ceil(), self.position.y.ceil()),
+            width: self.width.floor(),
+            height: self.height.floor()
+        }
     }
 }
 
@@ -276,6 +314,12 @@ mod tests {
     use quickcheck::*;
     use rand::Rng;
     use rand::seq::SliceRandom;
+
+    impl Arbitrary for SideLength {
+        fn arbitrary<G: Gen>(g: &mut G) -> SideLength {
+            SideLength(g.gen_range(1., 100.))
+        }
+    }
 
     impl Arbitrary for Orientation {
         fn arbitrary<G: Gen>(g: &mut G) -> Orientation {
@@ -335,12 +379,12 @@ mod tests {
         fn round(p: Point2<f32>) -> Point2<i16> {
             Point2::new(p.x.round() as i16, p.y.round() as i16)
         }
-        fn prop(x: i16, y: i16, o: Orientation) -> bool {
-            let s = Schema::new(1.0, o);
+        fn prop(x: i16, y: i16, s: SideLength, o: Orientation) -> bool {
+            let s = Schema::new(s, o);
             let p = Point2::new(x as f32, y as f32);
             round(s.from_pixel(s.to_pixel(p))) == round(p)
         }
-        quickcheck(prop as fn(_,_,_) -> _);
+        quickcheck(prop as fn(_,_,_,_) -> _);
     }
 
     #[test]
@@ -349,23 +393,23 @@ mod tests {
         // two hexagon center's must be a multiple of (half of)
         // the x respectively y distance between the centers
         // of adjacent hexagons, as defined by the schema.
-        fn prop(cs: Vec<(i16,i16)>, o: Orientation) -> bool {
-            let s = Schema::new(1.0, o);
+        fn prop(cs: Vec<(i16,i16)>, s: SideLength, o: Orientation) -> bool {
+            let s = Schema::new(s, o);
             cs.iter().all(|c1| {
                 cs.iter().all(|c2| {
                     let p1 = s.to_pixel(Point2::new(c1.0 as f32, c1.1 as f32));
                     let p2 = s.to_pixel(Point2::new(c2.0 as f32, c2.1 as f32));
                     let dx = (p1.x - p2.x).abs();
                     let dy = (p1.y - p2.y).abs();
-                    let nx = dx / (s.center_xoffset / 2.);
-                    let ny = dy / (s.center_yoffset / 2.);
+                    let nx = dx / (s.center_col_offset / 2.);
+                    let ny = dy / (s.center_row_offset / 2.);
                     let ex = (nx - nx.round()).abs();
                     let ey = (ny - ny.round()).abs();
                     ex < 0.02 && ey < 0.02
                 })
             })
         }
-        quickcheck(prop as fn(_,_) -> _);
+        quickcheck(prop as fn(_,_,_) -> _);
     }
 }
 

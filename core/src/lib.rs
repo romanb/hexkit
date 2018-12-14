@@ -1,3 +1,5 @@
+// #![feature(existential_type)]
+// #![feature(impl_trait_in_bindings)]
 
 extern crate either;
 extern crate nalgebra;

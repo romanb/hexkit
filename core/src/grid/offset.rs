@@ -110,27 +110,14 @@ impl<T: OffsetType> fmt::Display for Offset<T> {
 
 #[cfg(test)]
 mod tests {
-    use geo::*;
     use super::*;
     use quickcheck::*;
-    use rand::Rng;
-
-    impl<T: OffsetType> Arbitrary for Grid<Offset<T>>
-    where Offset<T>: Coords {
-        fn arbitrary<G: Gen>(g: &mut G) -> Grid<Offset<T>> {
-            let cols = g.gen_range(0, 100);
-            let rows = g.gen_range(0, 100);
-            let orientation = Orientation::arbitrary(g);
-            let schema = Schema::new(50., orientation);
-            Grid::new(schema, shape::rect_xz_odd(rows, cols))
-        }
-    }
 
     #[test]
     fn prop_from_to_cube_identity() {
         fn prop<T: OffsetType>(g: Grid<Offset<T>>) -> bool
         where Offset<T>: Coords {
-            g.tiles().all(|(&o,_)| {
+            g.iter().all(|(&o,_)| {
                 let c: Cube = o.into();
                 Offset::from(c) == o
             })

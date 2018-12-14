@@ -6,53 +6,17 @@ pub mod shape;
 
 pub use self::cube::*;
 pub use geo::*;
+    use grid::shape::Shape;
 
+use nalgebra::core::Vector2;
 use nalgebra::geometry::Point2;
 use num_traits::bounds::Bounded;
-use std::fmt::Display;
-
 use std::hash::Hash;
-use std::fmt::Debug;
+use std::fmt::{ Debug, Display };
 use std::collections::HashMap;
-use nalgebra::core::Vector2;
-use grid::shape::*;
 
-pub trait Coords: From<Cube> + Into<Cube>
-    + Eq + Copy + Debug + Display + Hash {}
-
-pub trait Store<C: Coords> {
-    fn schema(&self) -> &Schema;
-
-    fn get(&self, o: C) -> Option<&Hexagon>;
-
-    fn iter(&self) -> Box<dyn Iterator<Item=(&C, &Hexagon)> + '_>;
-
-    fn iter_visible<'a>(&'a self, vp: &'a Viewport)
-        -> Box<dyn Iterator<Item=(&C, &Hexagon)> + 'a>
-    {
-        Box::new(self.iter().filter(
-            move |(_, hex)|
-                vp.visible(&self.schema().bounds(&hex))))
-    }
-}
-
-pub struct HashMapStore<C: Coords + Hash> {
-    schema: Schema,
-    hexagons: HashMap<C, Hexagon>,
-}
-
-impl<C: Coords + Hash> Store<C> for HashMapStore<C> {
-    fn schema(&self) -> &Schema {
-        &self.schema
-    }
-
-    fn get(&self, c: C) -> Option<&Hexagon> {
-        self.hexagons.get(&c)
-    }
-
-    fn iter(&self) -> Box<dyn Iterator<Item=(&C, &Hexagon)> + '_> {
-        Box::new(self.hexagons.iter())
-    }
+pub trait Coords:
+    From<Cube> + Into<Cube> + Eq + Copy + Debug + Display + Hash {
 }
 
 /// A grid is a contiguous arrangement of hexagonal tiles with
@@ -60,71 +24,77 @@ impl<C: Coords + Hash> Store<C> for HashMapStore<C> {
 #[derive(Clone, Debug)]
 pub struct Grid<C: Coords> {
     schema: Schema,
-    hexagons: HashMap<C, Hexagon>, // impl Store<C>
+    store: HashMap<C, Hexagon>, // TODO: Configurable spatial hashing.
     width: f32,
     height: f32,
     pixel_offset: Vector2<f32>,
 }
 
 impl<C: Coords> Grid<C> {
-    pub fn new(schema: Schema, shape: ShapeIter<impl Iterator<Item=Cube> + Clone>) -> Grid<C> {
-        let mut hexagons = HashMap::with_capacity(shape.total);
-        let bounds = {
-            let centers = shape.clone().map(|c| c.to_pixel(&schema));
-            let min_max = ((0.,0.), (0.,0.));
-            centers.fold(min_max, |((min_x, max_x),(min_y, max_y)), c| {
-                 let new_min_x = f32::min(min_x, c.x);
-                 let new_max_x = f32::max(max_x, c.x);
-                 let new_min_y = f32::min(min_y, c.y);
-                 let new_max_y = f32::max(max_y, c.y);
-                 ((new_min_x, new_max_x), (new_min_y, new_max_y))
-            })
-        };
-        let offset_x = ((bounds.0).0 - schema.width / 2.).abs();
-        let offset_y = ((bounds.1).0 - schema.height / 2.).abs();
-        let width = (bounds.0).1 - (bounds.0).0 + schema.width;
-        let height = (bounds.1).1 - (bounds.1).0 + schema.height;
+    pub fn new<I>(schema: Schema, shape: Shape<I>) -> Grid<C>
+    where I: IntoIterator<Item=Cube> + Clone {
+        let (min, max)   = Self::measure(&schema, shape.clone().into_iter());
+        let offset_x     = (min.x - schema.width / 2.).abs();
+        let offset_y     = (min.y - schema.height / 2.).abs();
+        let width        = max.x - min.x + schema.width;
+        let height       = max.y - min.y + schema.height;
         let pixel_offset = Vector2::new(offset_x, offset_y);
-        hexagons.extend(shape.map(|c| {
+        let mut store    = HashMap::with_capacity(shape.total);
+        store.extend(shape.into_iter().map(|c| {
             let p = c.to_pixel(&schema) + pixel_offset;
             (C::from(c), schema.hexagon(p))
         }));
         Grid {
             schema,
-            hexagons,
+            store,
             width,
             height,
             pixel_offset,
         }
     }
 
+    fn measure<I>(schema: &Schema, shape: I) -> (Point2<f32>, Point2<f32>)
+    where I: Iterator<Item=Cube> {
+        let centers = shape.map(|c| c.to_pixel(&schema));
+        let min_max = (Point2::origin(), Point2::origin());
+        centers.fold(min_max, |(min, max), c| {
+             let new_min_x = f32::min(min.x, c.x);
+             let new_max_x = f32::max(max.x, c.x);
+             let new_min_y = f32::min(min.y, c.y);
+             let new_max_y = f32::max(max.y, c.y);
+             let new_min = Point2::new(new_min_x, new_min_y);
+             let new_max = Point2::new(new_max_x, new_max_y);
+             (new_min, new_max)
+        })
+    }
+
     pub fn schema(&self) -> &Schema {
         &self.schema
     }
 
-    pub fn from_pixel(&self, p: Point2<f32>) -> Option<C> {
-        // TODO: lookup coords
-        Some(C::from(Cube::from_pixel(p - self.pixel_offset, self.schema())))
+    pub fn from_pixel(&self, p: Point2<f32>) -> Option<(C, &Hexagon)> {
+        let c = C::from(Cube::from_pixel(p - self.pixel_offset, &self.schema));
+        self.store.get(&c).map(|h| (c,h))
     }
 
     pub fn to_pixel(&self, c: C) -> Point2<f32> {
-        c.into().to_pixel(self.schema())
+        c.into().to_pixel(&self.schema) + self.pixel_offset
     }
 
-    pub fn tile(&self, o: C) -> Option<&Hexagon> {
-        self.hexagons.get(&o)
+    pub fn get(&self, c: C) -> Option<&Hexagon> {
+        self.store.get(&c)
     }
 
-    pub fn tiles(&self) -> Box<dyn Iterator<Item=(&C, &Hexagon)> + '_> {
-        Box::new(self.hexagons.iter())
+    pub fn iter(&self) -> impl Iterator<Item=(&C, &Hexagon)> + '_ {
+        self.store.iter()
     }
 
-    pub fn visible_tiles<'a>(&'a self, vp: &'a Viewport)
-        -> Box<dyn Iterator<Item=(&C, &Hexagon)> + 'a>
+    pub fn iter_within<'a>(&'a self, b: &'a Bounds)
+        -> impl Iterator<Item=(&C, &Hexagon)> + 'a
     {
-        Box::new(self.tiles().filter(
-            move |(_, hex)| vp.visible(&self.schema().bounds(&hex))
-        ))
+        self.iter().filter(
+            move |(_, hex)|
+                b.intersects(&self.schema.bounds(&hex)))
     }
 
     pub fn width(&self) -> f32 {
@@ -133,25 +103,6 @@ impl<C: Coords> Grid<C> {
 
     pub fn height(&self) -> f32 {
         self.height
-    }
-}
-
-/// A viewport defines a visible, rectangular region of a grid.
-#[derive(Copy, Clone, Debug)]
-pub struct Viewport { // TODO: newtype on Bounds?
-    pub position: Point2<f32>,
-    pub width: f32,
-    pub height: f32
-}
-
-impl Viewport {
-    /// Check whether the given bounds intersect with the viewport,
-    /// i.e. if any points within the bounds are visible.
-    pub fn visible(&self, b: &Bounds) -> bool {
-        self.position.x               < b.position.x + b.width  &&
-        self.position.x + self.width  > b.position.x            &&
-        self.position.y               < b.position.y + b.height &&
-        self.position.y + self.height > b.position.y
     }
 }
 
@@ -187,4 +138,37 @@ impl From<Frac1> for f32 {
     fn from(Frac1(f): Frac1) -> f32 { f }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use quickcheck::*;
+
+    impl<C: Coords + Send + 'static> Arbitrary for Grid<C> {
+        fn arbitrary<G: Gen>(g: &mut G) -> Grid<C> {
+            let size = SideLength::arbitrary(g);
+            let schema = Schema::new(size, Orientation::arbitrary(g));
+            let shape = Shape::<Vec<Cube>>::arbitrary(g);
+            Grid::new(schema, shape)
+        }
+    }
+
+    #[test]
+    fn prop_new_grid() {
+        fn prop(g: Grid<Cube>) -> bool {
+            g.iter().all(|(c,h)| {
+                let b = Bounds {
+                    position: Point2::origin(),
+                    width: g.width().ceil(),
+                    height: g.height().ceil()
+                };
+                g.schema().bounds(&h).floor().within(&b)
+                    &&
+                g.from_pixel(h.center).is_some()
+                    &&
+                g.from_pixel(g.to_pixel(*c)) == Some((*c,h))
+            })
+        }
+        quickcheck(prop as fn(_) -> _);
+    }
+}
 

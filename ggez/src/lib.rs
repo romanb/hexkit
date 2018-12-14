@@ -3,14 +3,14 @@ extern crate ggez;
 extern crate hexworld;
 
 use hexworld::geo::{ Bounds, Hexagon };
-use hexworld::grid::{ Viewport, Grid, Cube, Coords };
+use hexworld::grid::{ Grid, Cube, Coords };
 
 use ggez::*;
 use ggez::graphics::*;
 
 pub struct GridView<C: Coords> {
     grid: Grid<C>,
-    viewport: Viewport,
+    viewport: Bounds,
     position: Point2,
     update: Update,
     updated: bool,
@@ -64,7 +64,7 @@ impl<C: Coords> GridView<C> {
         GridView {
             grid,
             position: bounds.position,
-            viewport: Viewport {
+            viewport: Bounds {
                 position: Point2::origin(),
                 width: bounds.width,
                 height: bounds.height
@@ -99,11 +99,11 @@ impl<C: Coords> GridView<C> {
     /// is relative to the position of the grid, i.e. scrolling moves
     /// the viewport over the grid. The width and height of the viewport
     /// correspond to the width and height of the grid view.
-    pub fn viewport(&self) -> &Viewport {
+    pub fn viewport(&self) -> &Bounds {
         &self.viewport
     }
 
-    pub fn from_pixel(&self, x: i32, y: i32) -> Option<C> {
+    pub fn from_pixel(&self, x: i32, y: i32) -> Option<(C, &Hexagon)> {
         self.grid.from_pixel(Point2::new(
             x as f32 - self.position.x + self.viewport.position.x,
             y as f32 - self.position.y + self.viewport.position.y
@@ -144,7 +144,7 @@ impl<C: Coords> GridView<C> {
     pub fn draw(&mut self, ctx: &mut Context, tdr: &mut impl TileDrawer<C>) -> GameResult<()> {
         let grid_pos = self.grid_position();
         let mut mesh = MeshBuilder::new();
-        for (coords, hex) in self.grid.visible_tiles(&self.viewport) {
+        for (coords, hex) in self.grid.iter_within(&self.viewport) {
             tdr.draw_tile(ctx, *coords, hex, &mut mesh)?;
         }
         let grid = mesh.build(ctx)?;
@@ -215,8 +215,9 @@ impl<C: Coords> GridView<C> {
     ) -> GameResult<()> {
         for cc in it {
             if let Some(c) = Some(C::from(cc)) {
-                if let Some(hex) = self.grid.tile(c) {
-                    if self.viewport.visible(&self.grid.schema().bounds(hex)) {
+                if let Some(hex) = self.grid.get(c) {
+                    let hex_bounds = self.grid.schema().bounds(hex);
+                    if self.viewport.intersects(&hex_bounds) {
                         mesh.polygon(mode, hex.corners());
                     }
                 }
