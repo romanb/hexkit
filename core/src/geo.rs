@@ -1,6 +1,6 @@
 //! Geometry of regular hexagons in a 2d cartesian coordinate system.
 
-use nalgebra::core::Matrix2;
+use nalgebra::core::{ Matrix2, Vector2 };
 use nalgebra::geometry::Point2;
 use num_traits::cast::{ FromPrimitive, ToPrimitive };
 use std::ops::{ Neg, Add, Sub };
@@ -51,6 +51,8 @@ pub struct Schema {
 }
 
 impl Schema {
+    /// Create a new schema for regular hexagons with the given side length
+    /// and orientation. The side length must be greater zero.
     pub fn new(side_len: SideLength, orientation: Orientation) -> Schema {
         let size = side_len.0;
         assert!(size > 0., "size <= 0");
@@ -96,30 +98,40 @@ impl Schema {
 }
 
 impl Schema {
+    /// The side length of hexagons produced from this schema.
     pub fn side_len(&self) -> f32 {
         self.side_len.0
     }
 
+    /// The width of hexagons produced from this schema.
     pub fn width(&self) -> f32 {
         self.width
     }
 
+    /// The height of hexagons produced from this schema.
     pub fn height(&self) -> f32 {
         self.height
     }
 
+    /// The horizontal distance between the centers of
+    /// two adjacent hexagons in different columns.
     pub fn center_col_offset(&self) -> f32 {
         self.center_col_offset
     }
 
+    /// The vertical distance between the centers of
+    /// two adjacent hexagons in different rows.
     pub fn center_row_offset(&self) -> f32 {
         self.center_row_offset
     }
 
+    /// The orientation of the hexagons produced from this schema.
     pub fn orientation(&self) -> Orientation {
         self.orientation
     }
 
+    /// Create a hexagon centered at the given point according
+    /// to the orientation and dimensions of this schema.
     pub fn hexagon(&self, center: Point2<f32>) -> Hexagon {
         Hexagon {
             center,
@@ -127,7 +139,9 @@ impl Schema {
         }
     }
 
-    /// Compute the minimal bounding box of a hexagon.
+    /// Compute the minimal bounding box of a hexagon. For the bounds
+    /// to be meaningful, the hexagon must have been produced from
+    /// the same schema.
     pub fn bounds(&self, h: &Hexagon) -> Bounds {
         Bounds {
             position: Point2::new(h.center.coords.x - self.width  / 2.,
@@ -176,6 +190,7 @@ impl Schema {
     }
 }
 
+/// A regular hexagon.
 #[derive(PartialEq, Clone, Debug)]
 pub struct Hexagon {
     pub(crate) center: Point2<f32>,
@@ -187,22 +202,14 @@ impl Hexagon {
         self.center
     }
 
-    pub fn center_x(&self) -> f32 {
-        self.center.coords.x
-    }
-
-    pub fn center_y(&self) -> f32 {
-        self.center.coords.y
-    }
-
     pub fn corners(&self) -> &[Point2<f32>; 6] {
         &self.corners
     }
 
-    pub fn gauge(&self, w: f32, h: f32) -> Point2<f32> {
-        let x = self.center.coords.x - w / 2.;
-        let y = self.center.coords.y - h / 2.;
-        Point2::new(x, y)
+    /// Calculate the position of a bounding box centered w.r.t.
+    /// the hexagon.
+    pub fn position(&self, w: f32, h: f32) -> Point2<f32> {
+        self.center - Vector2::new(w / 2., h / 2.)
     }
 }
 
@@ -210,11 +217,11 @@ pub struct Line([Point2<f32>; 2]);
 
 impl Line {
     pub fn bounds(&self) -> Bounds {
+        let [a,b] = self.0;
         Bounds {
-            position: Point2::new(f32::min(self.0[0].x, self.0[1].x),
-                                  f32::min(self.0[0].y, self.0[1].y)),
-            width: (self.0[0].x - self.0[1].x).abs(),
-            height: (self.0[0].y - self.0[1].y).abs(),
+            position: Point2::new(f32::min(a.x, b.x), f32::min(a.y, b.y)),
+            width: (a.x - b.x).abs(),
+            height: (a.y - b.y).abs(),
         }
     }
 }
@@ -255,11 +262,25 @@ impl Bounds {
         min_y <= self.position.y && self.position.y + self.height <= max_y
     }
 
-    pub fn floor(&self) -> Bounds {
+    /// Calculate the largest inner bounds with integer dimensions.
+    pub fn inner(&self) -> Bounds {
+        let dx = 1. - self.position.x.fract();
+        let dy = 1. - self.position.y.fract();
         Bounds {
             position: Point2::new(self.position.x.ceil(), self.position.y.ceil()),
-            width: self.width.floor(),
-            height: self.height.floor()
+            width: (self.width - dx).floor(),
+            height: (self.height - dy).floor()
+        }
+    }
+
+    /// Calculate the largest outer bounds with integer dimensions.
+    pub fn outer(&self) -> Bounds {
+        let dx = self.position.x.fract();
+        let dy = self.position.y.fract();
+        Bounds {
+            position: Point2::new(self.position.x.floor(), self.position.y.floor()),
+            width: (self.width + dx).ceil(),
+            height: (self.height + dy).ceil()
         }
     }
 }
@@ -314,6 +335,16 @@ mod tests {
     use quickcheck::*;
     use rand::Rng;
     use rand::seq::SliceRandom;
+
+    impl Arbitrary for Bounds {
+        fn arbitrary<G: Gen>(g: &mut G) -> Bounds {
+            Bounds {
+                position: Point2::new(g.gen(), g.gen()),
+                width: g.gen_range(0., 100.),
+                height: g.gen_range(0., 100.)
+            }
+        }
+    }
 
     impl Arbitrary for SideLength {
         fn arbitrary<G: Gen>(g: &mut G) -> SideLength {
@@ -410,6 +441,16 @@ mod tests {
             })
         }
         quickcheck(prop as fn(_,_,_) -> _);
+    }
+
+    #[test]
+    fn prop_bounds() {
+        fn prop(b: Bounds) -> bool {
+            let inner = b.inner();
+            let outer = b.outer();
+            inner.within(&b) && b.within(&outer)
+        }
+        quickcheck(prop as fn(_) -> _);
     }
 }
 

@@ -158,10 +158,10 @@ mod tests {
             g.iter().all(|(c,h)| {
                 let b = Bounds {
                     position: Point2::origin(),
-                    width: g.width().ceil(),
-                    height: g.height().ceil()
+                    width: g.width(),
+                    height: g.height()
                 };
-                g.schema().bounds(&h).floor().within(&b)
+                g.schema().bounds(&h).inner().within(&b.outer())
                     &&
                 g.from_pixel(h.center).is_some()
                     &&

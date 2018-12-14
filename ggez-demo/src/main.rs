@@ -53,7 +53,7 @@ impl TileDrawer<Offset<OddCol>> for Drawer {
     ) -> GameResult<()> {
         mb.polygon(DrawMode::Line(1.), hex.corners());
         let label = TextCached::new(coords.to_string())?;
-        let pos = hex.gauge(label.width(ctx) as f32, label.height(ctx) as f32);
+        let pos = hex.position(label.width(ctx) as f32, label.height(ctx) as f32);
         label.queue(ctx, pos, None);
         Ok(())
     }
@@ -92,15 +92,15 @@ impl EventHandler for State {
             dest: self.view.grid_position(), .. DrawParam::default()
         })?;
 
-        // let mut mesh;
+        let mut mesh: MeshBuilder;
 
         // Lines
         // set_color(ctx, RED)?;
         // mesh = MeshBuilder::new();
         // let start: Offset<OddCol> = Offset::new(0,0);
         // let end = Offset::new(10,4);
-        // let hex_start = self.view.grid().tile(start).unwrap();
-        // let hex_end = self.view.grid().tile(end).unwrap();
+        // let hex_start = self.view.grid().get(start).unwrap();
+        // let hex_end = self.view.grid().get(end).unwrap();
         // mesh.line(&[hex_start.center(), hex_end.center()], 2.);
         // let start_cube: Cube = start.into();
         // let end_cube: Cube = end.into();
