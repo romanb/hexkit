@@ -1,0 +1,22 @@
+stages:
+  - test
+  - deploy
+
+test-stable:
+  stage: test
+  image: "rust:latest"
+  script:
+    - cargo test
+
+pages:
+  stage: deploy
+  image: "rust:latest"
+  script:
+    - cargo doc
+    - mv target/doc public
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
+
