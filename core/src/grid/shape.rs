@@ -100,6 +100,5 @@ mod tests {
             Shape { data, total }
         }
     }
-
 }
 

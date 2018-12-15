@@ -115,17 +115,13 @@ mod tests {
 
     #[test]
     fn prop_from_to_cube_identity() {
-        fn prop<T: OffsetType>(g: Grid<Offset<T>>) -> bool
-        where Offset<T>: Coords {
-            g.iter().all(|(&o,_)| {
-                let c: Cube = o.into();
-                Offset::from(c) == o
-            })
+        fn prop(c: Cube) -> bool {
+            Cube::from(Offset::<OddCol>::from(c))  == c &&
+            Cube::from(Offset::<OddRow>::from(c))  == c &&
+            Cube::from(Offset::<EvenCol>::from(c)) == c &&
+            Cube::from(Offset::<EvenRow>::from(c)) == c
         }
-        quickcheck(prop as fn(Grid<Offset<OddCol>>)  -> _);
-        quickcheck(prop as fn(Grid<Offset<OddRow>>)  -> _);
-        quickcheck(prop as fn(Grid<Offset<EvenCol>>) -> _);
-        quickcheck(prop as fn(Grid<Offset<EvenRow>>) -> _);
+        quickcheck(prop as fn(_)  -> _);
     }
 }
 

@@ -85,30 +85,24 @@ impl Cube {
 
     /// The cube coordinates that are within the given range.
     pub fn range(&self, r: u16) -> impl Iterator<Item=Cube> + '_ {
-        // TODO: Dedicated RangeIter
-        let mut v   = Vec::with_capacity(Self::num_in_range(r));
         let x_end   = r as i32;
         let x_start = -x_end;
-        for x in x_start ..= x_end {
+        (x_start ..= x_end).flat_map(move |x| {
             let y_start = max(x_start, -x - x_end);
             let y_end   = min(x_end,   -x + x_end);
-            for y in y_start ..= y_end {
-                v.push(*self + CubeVec::new_xy(x, y));
-            }
-        }
-        v.into_iter()
+            (y_start ..= y_end).map(move |y| {
+                *self + CubeVec::new_xy(x, y)
+            })
+        })
     }
 
     /// The number of cube coordinates that are within the given range.
-    #[inline]
     pub fn num_in_range(r: u16) -> usize {
         Self::num_in_ring(r) * (r as usize + 1) / 2 + 1
-        // 3 * (r as usize) * (r as usize + 1) + 1
     }
 
     /// The number of cube coordinates that are in the ring of
     /// a given radius.
-    #[inline]
     pub fn num_in_ring(r: u16) -> usize {
         6 * (r as usize)
     }
@@ -116,29 +110,23 @@ impl Cube {
     pub fn range_overlapping(&self, other: Cube, r: u16)
         -> impl Iterator<Item=Cube> + '_
     {
-        // TODO: Use dedicated RangeIter
         let n = r as i32;
-        let mut v = Vec::new();
         let x_min = max(self.x() - n, other.x() - n);
         let x_max = min(self.x() + n, other.x() + n);
         let y_min = max(self.y() - n, other.y() - n);
         let y_max = min(self.y() + n, other.y() + n);
         let z_min = max(self.z() - n, other.z() - n);
         let z_max = min(self.z() + n, other.z() + n);
-        for x in x_min ..= x_max {
+        (x_min ..= x_max).flat_map(move |x| {
             let y_start = max(y_min, -x - z_max);
             let y_end   = min(y_max, -x - z_min);
-            for y in y_start ..= y_end {
-                v.push(Cube::new_xy(x, y));
-            }
-        }
-        v.into_iter()
+            (y_start ..= y_end).map(move |y| Cube::new_xy(x, y))
+        })
     }
 
     /// The cube coordinates that are within the given range and reachable.
     pub fn range_reachable<F>(&self, r: u16, f: F) -> HashSet<Cube>
-        where F: Fn(Cube) -> bool
-    {
+    where F: Fn(Cube) -> bool {
         let mut reachable = HashSet::new();
         let mut fringe = Vec::new();
         reachable.insert(*self);
@@ -160,8 +148,7 @@ impl Cube {
 
     pub fn walk_ring<D>(&self, dir: D, rad: u16, rot: Rotation)
         -> impl Iterator<Item=Cube> + '_
-        where D: Direction
-    {
+    where D: Direction {
         let mut v = Vec::with_capacity(rad as usize * 6);
         let mut c = *self + CubeVec::direction(dir) * rad as i32;
         for d in CubeVec::walk_directions(dir, rot) {
@@ -175,8 +162,7 @@ impl Cube {
 
     pub fn walk_range<'a, D>(&'a self, dir: D, rad: u16, rot: Rotation)
         -> impl Iterator<Item=Cube> + 'a
-        where D: Direction + 'a
-    {
+    where D: Direction + 'a {
         let rings = (1..rad+1).flat_map(move |i| self.walk_ring(dir, i, rot));
         iter::once(*self).chain(rings)
     }

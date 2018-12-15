@@ -108,18 +108,18 @@ impl EventHandler for State {
         // self.view.draw_hexagons(ctx, &mut mesh, line_hexes, DrawMode::Line(2.))?;
 
         // // Ranges
-        // set_color(ctx, BLUE)?;
-        // mesh = MeshBuilder::new();
-        // let r1_center: Cube = Offset::<OddCol>::new(20,20).into();
-        // let r2_center: Cube = Offset::<OddCol>::new(17,15).into();
-        // self.view.draw_hexagons(ctx, &mut mesh, r1_center.range(3), DrawMode::Fill)?;
-        // self.view.draw_hexagons(ctx, &mut mesh, r2_center.range(3), DrawMode::Fill)?;
+        set_color(ctx, BLUE)?;
+        mesh = MeshBuilder::new();
+        let r1_center: Cube = Offset::<OddCol>::new(20,20).into();
+        let r2_center: Cube = Offset::<OddCol>::new(17,15).into();
+        self.view.draw_hexagons(ctx, &mut mesh, r1_center.range(3), DrawMode::Fill)?;
+        self.view.draw_hexagons(ctx, &mut mesh, r2_center.range(3), DrawMode::Fill)?;
 
-        // // Overlapping ranges
-        // set_color(ctx, GREEN)?;
-        // mesh = MeshBuilder::new();
-        // let r12_overlap = r1_center.range_overlapping(r2_center, 3);
-        // self.view.draw_hexagons(ctx, &mut mesh, r12_overlap, DrawMode::Line(3.))?;
+        // Overlapping ranges
+        set_color(ctx, GREEN)?;
+        mesh = MeshBuilder::new();
+        let r12_overlap = r1_center.range_overlapping(r2_center, 3);
+        self.view.draw_hexagons(ctx, &mut mesh, r12_overlap, DrawMode::Line(3.))?;
 
         // // Reachable ranges
         // set_color(ctx, BLACK)?;

@@ -23,9 +23,6 @@ const CUBE_DIA_VECTORS: [[i32; 3]; 6] =
     , [ 1, -2,  1], [-1, -1,  2], [-2,  1,  1]
     ];
 
-// TODO: Rename to Direction and remove flat/pointy submodules,
-// instead using FlatTopDirection, PointyTopDirection etc. for
-// the enums.
 pub trait Direction: Copy + Clone {
     fn index(self) -> Z6;
     fn vector(self) -> CubeVec;
