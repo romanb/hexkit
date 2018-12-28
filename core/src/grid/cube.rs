@@ -241,7 +241,7 @@ impl Cube {
 impl Coords for Cube {}
 
 impl fmt::Display for Cube {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({},{},{})", self.p.x, self.p.y, self.p.z)
     }
 }
@@ -335,7 +335,7 @@ impl Sub<CubeVec> for Cube {
 
 #[cfg(test)]
 mod tests {
-    use grid::*;
+    use crate::grid::*;
     use quickcheck::*;
     use rand::{ Rng, thread_rng };
     use std::cmp::max;

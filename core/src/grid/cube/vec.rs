@@ -4,7 +4,7 @@
 
 pub use nalgebra::core::Vector3;
 pub use std::ops::{ Add, Sub, Mul, Neg };
-pub use geo::{ Z6, Rotation };
+pub use crate::geo::{ Z6, Rotation };
 
 use either::Either;
 use num_traits::cast::FromPrimitive;

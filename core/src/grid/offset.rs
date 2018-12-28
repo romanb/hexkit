@@ -123,7 +123,7 @@ impl From<Offset<EvenRow>> for Cube {
 }
 
 impl<T: OffsetType> fmt::Display for Offset<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({},{})", self.col, self.row)
     }
 }

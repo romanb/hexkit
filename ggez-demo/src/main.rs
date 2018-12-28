@@ -1,8 +1,4 @@
 
-extern crate hexworld;
-extern crate hexworld_ggez;
-extern crate ggez;
-
 use std::thread;
 use std::time;
 
@@ -161,7 +157,7 @@ impl EventHandler for State {
     }
 
     fn key_down_event(&mut self, _ctx: &mut Context, code: Keycode, _mod: Mod, repeat: bool) {
-        use Keycode::*;
+        use self::Keycode::*;
         let delta = (10 * if repeat { 2 } else { 1 }) as f32;
         match code {
             Right => self.view.scroll_x(delta),
@@ -174,7 +170,7 @@ impl EventHandler for State {
 
     fn mouse_motion_event(&mut self, ctx: &mut Context, _state: MouseState, x: i32, y: i32, _xrel: i32, _yrel: i32) {
         // self.update.hover = self.view.from_pixel(x, y);
-        self.hover = self.view.from_pixel(x, y).map(|(c,h)| c);
+        self.hover = self.view.from_pixel(x, y).map(|(c,_h)| c);
         println!("{:?}", self.hover);
         let bounds = match get_size(ctx) {
             (w,h) => Bounds {

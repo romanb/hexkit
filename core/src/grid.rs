@@ -5,8 +5,8 @@ pub mod offset;
 pub mod shape;
 
 pub use self::cube::*;
-pub use geo::*;
-    use grid::shape::Shape;
+pub use crate::geo::*;
+    use crate::grid::shape::Shape;
 
 use nalgebra::core::Vector2;
 use nalgebra::geometry::Point2;

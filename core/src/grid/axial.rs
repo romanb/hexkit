@@ -17,7 +17,7 @@ pub struct Axial {
 impl Coords for Axial {}
 
 impl fmt::Display for Axial {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({},{})", self.col, self.row)
     }
 }
