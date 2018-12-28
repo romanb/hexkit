@@ -1,3 +1,4 @@
+//! Axial coordinates.
 
 use std::fmt;
 use super::*;

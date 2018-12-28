@@ -24,6 +24,7 @@ pub trait TileDrawer<C> {
                  mb: &mut MeshBuilder) -> GameResult<()>;
 }
 
+/// Scheduled changes for the next update.
 struct Update {
     scroll: Scroll, // Option<Scroll>,
     resize: Option<(u32,u32)>,
@@ -95,7 +96,7 @@ impl<C: Coords> GridView<C> {
         self.updated
     }
 
-    /// Get a reference to the viewport. The position of the viewport
+    /// Get a reference to the bounds of the viewport. The position
     /// is relative to the position of the grid, i.e. scrolling moves
     /// the viewport over the grid. The width and height of the viewport
     /// correspond to the width and height of the grid view.
@@ -122,11 +123,12 @@ impl<C: Coords> GridView<C> {
             self.update.resize = None;
             self.updated = true;
         }
+        let grid  = self.grid.dimensions();
         let old_p = self.viewport.position;
         let new_x = old_p.x + self.update.scroll.dx;
         let new_y = old_p.y + self.update.scroll.dy;
-        let max_x = self.grid.width()  - self.viewport.width;
-        let max_y = self.grid.height() - self.viewport.height;
+        let max_x = grid.width  - self.viewport.width;
+        let max_y = grid.height - self.viewport.height;
         self.viewport.position.x = f32::min(max_x, f32::max(0., new_x));
         self.viewport.position.y = f32::min(max_y, f32::max(0., new_y));
         if !self.updated && old_p == self.viewport.position {

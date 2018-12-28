@@ -1,4 +1,4 @@
-//! A cube coordinate system for hexagonal grids.
+//! Cube coordinates.
 
 pub mod vec;
 
@@ -24,10 +24,24 @@ use self::vec::*;
 /// thus serves as the canonical coordinate system for any grid
 /// (see [`Coords`]).
 ///
+/// The following illustrates the coordinate system with a flat-top orientation.
+/// For a pointy-top orientation, it is to be rotated 30 degrees
+/// counterclockwise, i.e. such that `+x/-y` and `+y/-x` are horizontally
+/// aligned.
+///
+/// ```raw
+///         +y/-z
+///  +y/-x   ___   +x/-z
+///         /   \
+///         \___/
+///  +z/-x         +x/-y
+///         +z/-y
+/// ```
+///
 /// Guide: [Cube coordinates]
 ///
 /// [Cube coordinates]: https://www.redblobgames.com/grids/hexagons/#coordinates-cube
-/// [`Coords`]: trait.Coords.html
+/// [`Coords`]: ../trait.Coords.html
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, PartialOrd)]
 pub struct Cube {
     p: Point3<i32>,
@@ -84,14 +98,15 @@ impl Cube {
     }
 
     /// The cube coordinates that are within the given range.
-    pub fn range(&self, r: u16) -> impl Iterator<Item=Cube> + '_ {
+    pub fn range(&self, r: u16) -> impl Iterator<Item=Cube> + Clone {
         let x_end   = r as i32;
         let x_start = -x_end;
+        let center = *self;
         (x_start ..= x_end).flat_map(move |x| {
             let y_start = max(x_start, -x - x_end);
             let y_end   = min(x_end,   -x + x_end);
             (y_start ..= y_end).map(move |y| {
-                *self + CubeVec::new_xy(x, y)
+                center + CubeVec::new_xy(x, y)
             })
         })
     }

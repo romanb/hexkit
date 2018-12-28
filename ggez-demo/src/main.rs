@@ -206,7 +206,9 @@ fn main() -> Result<(), GameError> {
     // ggez::mouse::set_grabbed(ctx, true);
 
     let schema = Schema::new(SideLength(50.), Orientation::FlatTop);
-    let grid = Grid::new(schema, shape::rect_xz_odd(30,30));
+    // let grid = Grid::new(schema, shape::rect_xz_odd(30,30));
+    // let grid = Grid::new(schema, shape::rectangle_xz_even(30,30));
+    let grid = Grid::new(schema, shape::hexagon(5));
     let bounds = Bounds {
         position: Point2::new(100., 100.),
         width: (width - 200) as f32,

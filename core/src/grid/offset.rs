@@ -1,3 +1,4 @@
+//! Offset coordinates.
 
 use std::fmt;
 use std::fmt::Debug;
@@ -23,15 +24,34 @@ pub struct Offset<T: OffsetType> {
 impl<T: OffsetType> Coords for Offset<T>
 where Offset<T>: From<Cube> + Into<Cube> {}
 
+/// The type of offset coordinates that yield strictly
+/// non-negative coordinates when used with a
+/// flat-top orientation for the axis-aligned rectangular
+/// grid constructed by `grid::shape::rectangle_xz_odd`.
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct OddCol;
 impl OffsetType for OddCol {}
+
+/// The type of offset coordinates that yield strictly
+/// non-negative coordinates when used with a
+/// pointy-top orientation for the axis-aligned rectangular
+/// grid constructed by `grid::shape::rectangle_zx_odd`.
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct OddRow;
 impl OffsetType for OddRow {}
+
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+/// The type of offset coordinates that yield strictly
+/// non-negative coordinates when used with a
+/// flat-top orientation for the axis-aligned rectangular
+/// grid constructed by `grid::shape::rectangle_xz_even`.
 pub struct EvenCol;
 impl OffsetType for EvenCol {}
+
+/// The type of offset coordinates that yield strictly
+/// non-negative coordinates when used with a
+/// pointy-top orientation for the axis-aligned rectangular
+/// grid constructed by `grid::shape::rectangle_zx_even`.
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub struct EvenRow;
 impl OffsetType for EvenRow {}
