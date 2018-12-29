@@ -31,6 +31,11 @@ struct State {
 impl State {
 }
 
+struct Update {
+    hover: Option<Offset<OddCol>>,
+    resize: Option<(u32,u32)>,
+}
+
 // struct TileState {
 //     obstacle: bool,
 // }
@@ -71,9 +76,6 @@ impl EventHandler for State {
         Ok(())
     }
 
-    // nb. A new MeshBuilder is used for every section that uses
-    // different colors for the polygons, because the DrawParams
-    // can currently not be changed for individual items in a mesh.
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         if !self.updated {
             thread::sleep(time::Duration::from_millis(10));
@@ -117,12 +119,18 @@ impl EventHandler for State {
         let r12_overlap = r1_center.range_overlapping(r2_center, 3);
         self.view.draw_hexagons(ctx, &mut mesh, r12_overlap, DrawMode::Line(3.))?;
 
-        // // Reachable ranges
-        // set_color(ctx, BLACK)?;
-        // mesh = MeshBuilder::new();
-        // let obstacle1: Cube = Offset::<OddCol>::new(7,7).into();
-        // let obstacle2: Cube = Offset::<OddCol>::new(9,9).into();
-        // self.view.draw_hexagons(ctx, &mut mesh, [obstacle1, obstacle2].iter().cloned(), DrawMode::Fill)?;
+        // Reachable & visible ranges
+        set_color(ctx, BLACK)?;
+        mesh = MeshBuilder::new();
+        let obstacle1: Cube = Offset::<OddCol>::new(7,7).into();
+        let obstacle2: Cube = Offset::<OddCol>::new(9,9).into();
+        self.view.draw_hexagons(ctx, &mut mesh, [obstacle1, obstacle2].iter().cloned(), DrawMode::Fill)?;
+
+        set_color(ctx, GREEN)?;
+        mesh = MeshBuilder::new();
+        let obs_start: Cube = Offset::<OddCol>::new(8,9).into();
+        let visible = obs_start.range_visible(3, |x| x != obstacle1 && x != obstacle2);
+        self.view.draw_hexagons(ctx, &mut mesh, visible.into_iter(), DrawMode::Fill)?;
 
         // set_color(ctx, GREEN)?;
         // mesh = MeshBuilder::new();
@@ -130,12 +138,12 @@ impl EventHandler for State {
         // let reachable = obs_start.range_reachable(3, |x| x != obstacle1 && x != obstacle2);
         // self.view.draw_hexagons(ctx, &mut mesh, reachable.into_iter(), DrawMode::Fill)?;
 
-        // // Rings
-        // set_color(ctx, GREY)?;
-        // mesh = MeshBuilder::new();
-        // let ring_center: Cube = Offset::<OddCol>::new(10,4).into();
-        // let ring = ring_center.walk_ring(FlatTopDirection::NorthEast, 4, Rotation::CW).collect::<Vec<_>>();
-        // self.view.draw_hexagons(ctx, &mut mesh, ring.into_iter(), DrawMode::Fill)?;
+        // Rings
+        set_color(ctx, GREY)?;
+        mesh = MeshBuilder::new();
+        let ring_center: Cube = Offset::<OddCol>::new(10,4).into();
+        let ring = ring_center.walk_ring(FlatTopDirection::NorthEast, 4, Rotation::CW).collect::<Vec<_>>();
+        self.view.draw_hexagons(ctx, &mut mesh, ring.into_iter(), DrawMode::Fill)?;
 
         // "HUD"
         set_color(ctx, BLACK)?;
@@ -202,9 +210,9 @@ fn main() -> Result<(), GameError> {
     // ggez::mouse::set_grabbed(ctx, true);
 
     let schema = Schema::new(SideLength(50.), Orientation::FlatTop);
-    // let grid = Grid::new(schema, shape::rect_xz_odd(30,30));
+    let grid = Grid::new(schema, shape::rectangle_xz_odd(30,30));
     // let grid = Grid::new(schema, shape::rectangle_xz_even(30,30));
-    let grid = Grid::new(schema, shape::hexagon(5));
+    // let grid = Grid::new(schema, shape::hexagon(5));
     let bounds = Bounds {
         position: Point2::new(100., 100.),
         width: (width - 200) as f32,

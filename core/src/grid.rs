@@ -10,7 +10,6 @@ pub use crate::geo::*;
 
 use nalgebra::core::Vector2;
 use nalgebra::geometry::Point2;
-use num_traits::bounds::Bounded;
 use std::hash::Hash;
 use std::fmt::{ Debug, Display };
 use std::collections::HashMap;
@@ -37,7 +36,7 @@ pub struct Dimensions {
 
 impl<C: Coords> Grid<C> {
     pub fn new<I>(schema: Schema, shape: Shape<I>) -> Grid<C>
-    where I: IntoIterator<Item=Cube> + Clone {
+    where I: IntoIterator<Item=Cube> {
         let num_hexagons = shape.total;
         let (ps, cs): (Vec<Point2<f32>>, Vec<C>) =
             shape.into_iter().map(|c| (c.to_pixel(&schema), C::from(c))).unzip();
@@ -110,38 +109,6 @@ impl<C: Coords> Grid<C> {
     pub fn dimensions(&self) -> &Dimensions {
         &self.dimensions
     }
-}
-
-/// A fraction in the unit interval `[0,1]`.
-#[derive(PartialEq, Copy, Clone, Debug)]
-pub struct Frac1(f32);
-
-impl Frac1 {
-    /// Create a new fraction in the unit interval [0,1].
-    /// If the numerator is greater than the denominator or if
-    /// the denominator is zero, a panic is triggered.
-    pub fn new(numer: f32, denom: f32) -> Frac1 {
-        if numer > denom {
-            panic!("numer > denom");
-        }
-        if denom == 0. {
-            panic!("denom == 0");
-        }
-        Frac1(numer / denom)
-    }
-}
-
-impl Bounded for Frac1 {
-    fn min_value() -> Frac1 {
-        Frac1(0.)
-    }
-    fn max_value() -> Frac1 {
-        Frac1(1.)
-    }
-}
-
-impl From<Frac1> for f32 {
-    fn from(Frac1(f): Frac1) -> f32 { f }
 }
 
 #[cfg(test)]

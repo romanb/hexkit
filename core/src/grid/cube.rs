@@ -80,15 +80,15 @@ impl Cube {
     }
 
     /// The distance to another cube coordinate.
-    pub fn distance(&self, other: Cube) -> u32 { // TODO: usize
-        ( (self.p.x - other.p.x).abs() as u32 +
-          (self.p.y - other.p.y).abs() as u32 +
-          (self.p.z - other.p.z).abs() as u32 ) / 2
+    pub fn distance(&self, other: Cube) -> usize { // TODO: usize
+        ( (self.p.x - other.p.x).abs() as usize +
+          (self.p.y - other.p.y).abs() as usize +
+          (self.p.z - other.p.z).abs() as usize ) / 2
     }
 
     /// The shortest path to another cube coordinate, i.e. along
-    /// a straight line, including the start coordinate.
-    pub fn beeline(&self, other: Cube) -> impl Iterator<Item=Cube> + '_ {
+    /// a straight line, always including the start coordinate.
+    pub fn beeline(&self, other: Cube) -> impl ExactSizeIterator<Item=Cube> + '_ {
         LineIterator {
             distance: self.distance(other),
             start: *self,
@@ -123,8 +123,7 @@ impl Cube {
     }
 
     pub fn range_overlapping(&self, other: Cube, r: u16)
-        -> impl Iterator<Item=Cube> + '_
-    {
+    -> impl Iterator<Item=Cube> + '_ {
         let n = r as i32;
         let x_min = max(self.x() - n, other.x() - n);
         let x_max = min(self.x() + n, other.x() + n);
@@ -161,22 +160,41 @@ impl Cube {
         reachable
     }
 
-    pub fn walk_ring<D>(&self, dir: D, rad: u16, rot: Rotation)
-        -> impl Iterator<Item=Cube> + '_
-    where D: Direction {
-        let mut v = Vec::with_capacity(rad as usize * 6);
-        let mut c = *self + CubeVec::direction(dir) * rad as i32;
-        for d in CubeVec::walk_directions(dir, rot) {
-            for _ in 0..rad {
-                v.push(c);
-                c = c + d;
-            }
+    /// Iterator over the visible coordinates in the specified range,
+    /// where visibility of a coordinate `c` is determined by checking
+    /// whether all coordinates between `self` and `c` (as determined
+    /// by `beeline`) satisfy the given predicate. The first blocked
+    /// coordinate on a beeline is always considered visible.
+    pub fn range_visible<F>(self, r: u16, f: F)
+    -> impl Iterator<Item=Cube>
+    where F: Fn(Cube) -> bool {
+        self.range(r).filter(move |c| {
+            let l = self.beeline(*c);
+            let n = l.len(); // n > 0
+            l.take(n - 1).all(|x| f(x))
+        })
+    }
+
+    /// Iterate over the coordinates in the ring at a given distance
+    /// from `self`, starting at the first coordinate of the ring in
+    /// the given direction from `self` and walking along the ring
+    /// as per the given `Rotation`.
+    pub fn walk_ring<'a,D>(&'a self, dir: D, rad: u16, rot: Rotation)
+    -> impl Iterator<Item=Cube> + 'a
+    where D: Direction + 'a {
+        let mut dirs = CubeVec::walk_directions(dir, rot);
+        let dir1 = dirs.next().unwrap();
+        RingIterator {
+            radius: rad,
+            pos: *self + CubeVec::direction(dir) * rad as i32,
+            dir: dir1,
+            dir_count: 0,
+            dirs,
         }
-        v.into_iter()
     }
 
     pub fn walk_range<'a, D>(&'a self, dir: D, rad: u16, rot: Rotation)
-        -> impl Iterator<Item=Cube> + 'a
+    -> impl Iterator<Item=Cube> + 'a
     where D: Direction + 'a {
         let rings = (1..rad+1).flat_map(move |i| self.walk_ring(dir, i, rot));
         iter::once(*self).chain(rings)
@@ -259,8 +277,8 @@ impl From<Cube> for Point2<f32> {
 }
 
 pub struct LineIterator {
-    distance: u32,
-    current: u32,
+    distance: usize,
+    current: usize,
     start: Cube,
     end: Cube,
 }
@@ -269,7 +287,7 @@ impl Iterator for LineIterator {
     type Item = Cube;
 
     fn next(&mut self) -> Option<Cube> {
-        if self.current <= self.distance {
+        if self.distance > 0 && self.current <= self.distance {
             let frac = Frac1::new(self.current as f32, self.distance as f32);
             let next = self.start.lerp(self.end, frac);
             self.current += 1;
@@ -287,12 +305,45 @@ impl Iterator for LineIterator {
 
 impl ExactSizeIterator for LineIterator {}
 
-/// Linear interpolation of a coordinate.
-/// TODO: Move to mod geo
-fn lerp(ai: i32, bi: i32, fr: Frac1) -> f32 {
-    let (a, b, t) = (ai as f32, bi as f32, f32::from(fr));
-    a + (b - a) * t
+pub struct RingIterator<I: Iterator<Item=CubeVec>> {
+    pos: Cube,
+    dirs: I,
+    dir: CubeVec,
+    radius: u16,
+    dir_count: u16,
 }
+
+impl<I: ExactSizeIterator<Item=CubeVec>> Iterator for RingIterator<I> {
+    type Item = Cube;
+
+    fn next(&mut self) -> Option<Cube> {
+        if self.radius == 0 {
+            return None
+        }
+        if self.dir_count >= self.radius {
+            self.dirs.next().and_then(|dir| {
+                self.dir = dir;
+                self.dir_count = 0;
+                self.next()
+            })
+        } else {
+            let pos = self.pos;
+            self.dir_count += 1;
+            self.pos = self.pos + self.dir;
+            Some(pos)
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = {
+            self.dirs.len() as u16 * self.radius + self.radius - self.dir_count
+        } as usize;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<I: ExactSizeIterator<Item=CubeVec>> ExactSizeIterator
+for RingIterator<I> {}
 
 impl Ord for Cube {
     fn cmp(&self, other: &Cube) -> Ordering {
@@ -403,7 +454,11 @@ mod tests {
     fn prop_cube_distance() {
         fn prop(c1: Cube, c2: Cube) -> bool {
             let v = c1 - c2;
-            let (x,y,z) = (v.0.x.abs() as u32, v.0.y.abs() as u32, v.0.z.abs() as u32);
+            let (x,y,z) = (
+                v.0.x.abs() as usize,
+                v.0.y.abs() as usize,
+                v.0.z.abs() as usize
+            );
             c1.distance(c2) == max(x, max(y, z))
         }
         quickcheck(prop as fn(_,_) -> _);
@@ -432,7 +487,7 @@ mod tests {
     fn prop_range() {
         fn prop(c: Cube, r: u16) -> bool {
             let v = c.range(r).collect::<Vec<Cube>>();
-            v.iter().all(|n| c.distance(*n) <= r as u32)
+            v.iter().all(|n| c.distance(*n) <= r as usize)
                 && v.contains(&c)
                 && v.len() == Cube::num_in_range(r)
         }
@@ -475,10 +530,9 @@ mod tests {
     #[test]
     fn prop_walk_range() {
         fn prop(c: Cube, r: u16, d: FlatTopDirection, rot: Rotation) -> bool {
-            c.walk_range(d, r, rot)
-                .collect::<HashSet<_>>()
+            c.walk_range(d, r, rot).collect::<HashSet<_>>()
                 ==
-                c.range(r).collect::<HashSet<_>>()
+            c.range(r).collect()
         }
         quickcheck(prop as fn(_,_,_,_) -> _);
     }
@@ -497,6 +551,34 @@ mod tests {
         fn prop(c: Cube, s: SideLength, o: Orientation) -> bool {
             let s = Schema::new(s, o);
             Cube::from_pixel(c.to_pixel(&s), &s) == c
+        }
+        quickcheck(prop as fn(_,_,_) -> _);
+    }
+
+    #[test]
+    fn prop_range_visible_all() {
+        fn prop(c: Cube, r: u16) -> bool {
+            c.range_visible(r % 32, |_| true).collect::<HashSet<_>>()
+                ==
+            c.range(r % 32).collect()
+        }
+        quickcheck(prop as fn(_,_) -> _);
+    }
+
+    #[test]
+    fn prop_range_visible_blocked_dir() {
+        fn prop(c: Cube, r: u16, d: FlatTopDirection) -> bool {
+            let range = (r % 32) + 1;
+            let blocked = c + d.vector();
+            let visible = c.range_visible(range, |x| x != blocked).collect::<HashSet<_>>();
+            // All coordinates in the direction of (and beyond)
+            // the blocked neighbour are expected not to be visible.
+            let blocked_end = c + d.vector() * range as i32;
+            visible.contains(&blocked)
+                &&
+            c.beeline(blocked_end)
+                .skip(1) // skip the origin
+                .all(|x| x == blocked || !visible.contains(&x))
         }
         quickcheck(prop as fn(_,_,_) -> _);
     }

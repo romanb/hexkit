@@ -3,6 +3,7 @@
 use nalgebra::core::{ Matrix2, Vector2 };
 use nalgebra::geometry::Point2;
 use num_traits::cast::{ FromPrimitive, ToPrimitive };
+use num_traits::bounds::Bounded;
 use std::ops::{ Neg, Add, Sub };
 
 /// The angle (in degrees) of the equilateral triangles that
@@ -283,6 +284,44 @@ impl Bounds {
             height: (self.height + dy).ceil()
         }
     }
+}
+
+/// A fraction in the unit interval `[0,1]`.
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub struct Frac1(f32);
+
+impl Frac1 {
+    /// Create a new fraction in the unit interval [0,1].
+    /// If the numerator is greater than the denominator or if
+    /// the denominator is zero, a panic is triggered.
+    pub fn new(numer: f32, denom: f32) -> Frac1 {
+        if numer > denom {
+            panic!("numer > denom");
+        }
+        if denom == 0. {
+            panic!("denom == 0");
+        }
+        Frac1(numer / denom)
+    }
+}
+
+impl Bounded for Frac1 {
+    fn min_value() -> Frac1 {
+        Frac1(0.)
+    }
+    fn max_value() -> Frac1 {
+        Frac1(1.)
+    }
+}
+
+impl From<Frac1> for f32 {
+    fn from(Frac1(f): Frac1) -> f32 { f }
+}
+
+/// Linear interpolation of a coordinate.
+pub fn lerp(ai: i32, bi: i32, fr: Frac1) -> f32 {
+    let (a, b, t) = (ai as f32, bi as f32, f32::from(fr));
+    a + (b - a) * t
 }
 
 /// The additive group of integers modulo 6, i.e. Z/6Z,

@@ -27,7 +27,7 @@ impl<I: IntoIterator<Item=Cube>> IntoIterator for Shape<I> {
 ///
 /// # Arguments
 ///
-/// * `side_length` - The side length of the hexagon formed by the grid. 
+/// * `side_length` - The side length of the hexagon formed by the grid.
 ///
 /// # Shapes
 ///
@@ -49,7 +49,7 @@ impl<I: IntoIterator<Item=Cube>> IntoIterator for Shape<I> {
 /// \       /
 ///  \_____/
 /// ```
-pub fn hexagon(side_length: u16) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn hexagon(side_length: u16) -> Shape<impl Iterator<Item=Cube>> {
     assert!(side_length > 0, "side_length == 0");
     let data = Cube::origin().range(side_length - 1);
     Shape { data, total: Cube::num_in_range(side_length - 1) }
@@ -80,7 +80,7 @@ pub fn hexagon(side_length: u16) -> Shape<impl Iterator<Item=Cube> + Clone> {
 ///  \   /
 ///   \./
 /// ```
-pub fn parallelogram_xy(rows: i32, cols: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn parallelogram_xy(rows: i32, cols: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. cols).flat_map(move |x| {
         (0 .. rows).map(move |y| Cube::new_xy(x, y))
     });
@@ -107,7 +107,7 @@ pub fn parallelogram_xy(rows: i32, cols: i32) -> Shape<impl Iterator<Item=Cube> 
 ///   \    \
 ///    \____\
 /// ```
-pub fn parallelogram_xz(rows: i32, cols: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn parallelogram_xz(rows: i32, cols: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. cols).flat_map(move |x| {
         (0 .. rows).map(move |z| Cube::new_xz(x, z))
     });
@@ -133,7 +133,7 @@ pub fn parallelogram_xz(rows: i32, cols: i32) -> Shape<impl Iterator<Item=Cube> 
 ///  /     /
 /// /_____/
 /// ```
-pub fn parallelogram_yz(dy: i32, dz: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn parallelogram_yz(dy: i32, dz: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dy).flat_map(move |y| {
         (0 .. dz).map(move |z| Cube::new_yz(y, z))
     });
@@ -157,7 +157,7 @@ pub fn parallelogram_yz(dy: i32, dz: i32) -> Shape<impl Iterator<Item=Cube> + Cl
 /// ```
 ///
 /// Pointy-Top: Flat-top rotated 30 degrees counterclockwise.
-pub fn rectangle_xz_even(dx: i32, dz: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn rectangle_xz_even(dx: i32, dz: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dx).flat_map(move |x| {
         let x_offset = (x + 1) / 2;
         (-x_offset .. dz - x_offset).map(move |z| {
@@ -183,7 +183,7 @@ pub fn rectangle_xz_even(dx: i32, dz: i32) -> Shape<impl Iterator<Item=Cube> + C
 /// ```
 ///
 /// Pointy-Top: Flat-top rotated 30 degrees counterclockwise.
-pub fn rectangle_xz_odd(dx: i32, dz: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn rectangle_xz_odd(dx: i32, dz: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dx).flat_map(move |x| {
         let x_offset = x / 2;
         (-x_offset .. dz - x_offset).map(move |z| {
@@ -208,7 +208,7 @@ pub fn rectangle_xz_odd(dx: i32, dz: i32) -> Shape<impl Iterator<Item=Cube> + Cl
 /// (2) >       >
 /// (3) |_______|
 /// ```
-pub fn rectangle_zx_even(dz: i32, dx: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn rectangle_zx_even(dz: i32, dx: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dz).flat_map(move |z| {
         let z_offset = (z + 1) / 2;
         (-z_offset .. dx - z_offset).map(move |x| {
@@ -233,7 +233,7 @@ pub fn rectangle_zx_even(dz: i32, dx: i32) -> Shape<impl Iterator<Item=Cube> + C
 /// 2 |       |
 /// 3 >_______>
 /// ```
-pub fn rectangle_zx_odd(dz: i32, dx: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn rectangle_zx_odd(dz: i32, dx: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dz).flat_map(move |z| {
         let z_offset = z / 2;
         (-z_offset .. dx - z_offset).map(move |x| {
@@ -250,7 +250,7 @@ pub fn rectangle_zx_odd(dz: i32, dx: i32) -> Shape<impl Iterator<Item=Cube> + Cl
 /// with the origin at the bottom left corner.
 ///
 /// Pointy-Top: Flat-top rotated 30 degrees counterclockwise.
-pub fn rectangle_xy(dx: i32, dy: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn rectangle_xy(dx: i32, dy: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dx).flat_map(move |x| {
         let x_offset = x / 2;
         (-x_offset .. dy - x_offset).map(move |y| {
@@ -266,7 +266,7 @@ pub fn rectangle_xy(dx: i32, dy: i32) -> Shape<impl Iterator<Item=Cube> + Clone>
 /// top-right corner.
 ///
 /// Flat-Top: Pointy-top rotated 30 degrees clockwise.
-pub fn rectangle_zy(dz: i32, dy: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn rectangle_zy(dz: i32, dy: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dz).flat_map(move |z| {
         let z_offset = z / 2;
         (-z_offset .. dy - z_offset).map(move |y| {
@@ -283,7 +283,7 @@ pub fn rectangle_zy(dz: i32, dy: i32) -> Shape<impl Iterator<Item=Cube> + Clone>
 ///
 /// Pointy-Top: A flat-top axis-aligned grid with the origin at the
 /// bottom-right corner, rotated 30 degrees clockwise.
-pub fn rectangle_yx(dy: i32, dx: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn rectangle_yx(dy: i32, dx: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dy).flat_map(move |y| {
         let y_offset = y / 2;
         (-y_offset .. dx - y_offset).map(move |x| {
@@ -300,7 +300,7 @@ pub fn rectangle_yx(dy: i32, dx: i32) -> Shape<impl Iterator<Item=Cube> + Clone>
 ///
 /// Pointy-Top: A flat-top axis-aligned rectangle with the origin
 /// in the top-right corner, rotated 30 degrees clockwise.
-pub fn rectangle_yz(dy: i32, dz: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn rectangle_yz(dy: i32, dz: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dy).flat_map(move |y| {
         let y_offset = y / 2;
         (-y_offset .. dz - y_offset).map(move |z| {
@@ -341,7 +341,7 @@ pub fn rectangle_yz(dy: i32, dz: i32) -> Shape<impl Iterator<Item=Cube> + Clone>
 ///   \  /
 ///    \/
 /// ```
-pub fn triangle_xy(dx: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn triangle_xy(dx: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dx).flat_map(move |x| {
         (x .. dx).map(move |y| Cube::new_xy(x, -y))
     });
@@ -360,7 +360,7 @@ pub fn triangle_xy(dx: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
 /// Flat-Top:
 /// ```raw
 ///   /|
-///  / | 
+///  / |
 /// .  |
 ///  \ |
 ///   \|
@@ -373,7 +373,7 @@ pub fn triangle_xy(dx: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
 ///  /    \
 /// .______\
 /// ```
-pub fn triangle_yx(dy: i32) -> Shape<impl Iterator<Item=Cube> + Clone> {
+pub fn triangle_yx(dy: i32) -> Shape<impl Iterator<Item=Cube>> {
     let data = (0 .. dy).flat_map(move |y| {
         (y .. dy).map(move |x| Cube::new_xy(x, -y))
     });
@@ -397,7 +397,7 @@ mod tests {
                 3 => rectangle_zx_even(n1, n2).data.collect(),
                 4 => triangle_xy(n1).data.collect(),
                 5 => triangle_yx(n1).data.collect(),
-                6 => hexagon(n1 as u16).data.collect(),
+                6 => hexagon(n1 as u16 + 1).data.collect(),
                 7 => parallelogram_xy(n1, n2).data.collect(),
                 8 => parallelogram_xz(n1, n2).data.collect(),
                 9 => parallelogram_yz(n1, n2).data.collect(),

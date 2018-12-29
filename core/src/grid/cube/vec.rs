@@ -1,6 +1,4 @@
 //! Directions in the cube coordinate system.
-//!
-//! ...
 
 pub use nalgebra::core::Vector3;
 pub use std::ops::{ Add, Sub, Mul, Neg };
@@ -53,21 +51,25 @@ impl CubeVec {
         CubeVec(Vector3::from(CUBE_DIR_VECTORS[d.index() as usize]))
     }
 
-    pub fn diagonals() -> impl DoubleEndedIterator<Item=CubeVec> {
+    pub fn diagonals() -> impl DoubleEndedIterator<Item=CubeVec> + Clone {
         CUBE_DIA_VECTORS.iter().map(|v| CubeVec(Vector3::from(*v)))
     }
 
-    pub fn walk_directions<D>(d: D, r: Rotation) -> impl Iterator<Item=CubeVec>
-        where D: Direction
-    {
+    pub fn walk_directions<D>(d: D, r: Rotation)
+    -> impl ExactSizeIterator<Item=CubeVec>
+    where D: Direction {
         let dirs = Self::directions();
         match r {
             Rotation::CW  => Either::Left(
-                dirs.cycle().skip((d.index() + Z6::Two) as usize).take(6)
-            ),
+                WalkDirIterator {
+                    inner: dirs.cycle().skip((d.index() + Z6::Two) as usize).take(6),
+                    remaining: 6,
+                }),
             Rotation::CCW => Either::Right(
-                dirs.rev().cycle().skip((Z6::One - d.index()) as usize).take(6)
-            )
+                WalkDirIterator {
+                    inner: dirs.rev().cycle().skip((Z6::One - d.index()) as usize).take(6),
+                    remaining: 6,
+                })
         }
     }
 
@@ -86,6 +88,28 @@ impl CubeVec {
         }
     }
 }
+
+struct WalkDirIterator<I: Iterator<Item=CubeVec>> {
+    inner: I,
+    remaining: usize,
+}
+
+impl<I: Iterator<Item=CubeVec>> Iterator for WalkDirIterator<I> {
+    type Item = I::Item;
+    fn next(&mut self) -> Option<CubeVec> {
+        if self.remaining == 0 {
+            return None
+        }
+        self.remaining -= 1;
+        self.inner.next()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl<I: Iterator<Item=CubeVec>> ExactSizeIterator
+for WalkDirIterator<I> {}
 
 impl Add<CubeVec> for CubeVec {
     type Output = CubeVec;
