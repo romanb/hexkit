@@ -6,17 +6,20 @@ use ggez::*;
 use ggez::graphics::*;
 use ggez::event::*;
 
-use hexworld_ggez::*;
+use hexworld_ggez::mesh;
 
 use hexworld::grid::*;
 use hexworld::grid::shape;
-use hexworld::grid::axial::*;
+// use hexworld::grid::axial::*;
 use hexworld::grid::offset::*;
 use hexworld::grid::cube::vec::*;
+use hexworld::ui::gridview;
+
+use nalgebra::Point2;
 
 struct State {
-    view: GridView<Offset<OddCol>>,
-    drawer: Drawer,
+    view: gridview::State<Offset<OddCol>>,
+    // drawer: Drawer,
     image: Image,
     hover: Option<Offset<OddCol>>,
     updated: bool,
@@ -37,30 +40,10 @@ struct Update {
 }
 
 // struct TileState {
-//     obstacle: bool,
 // }
 
-struct Drawer {
-    // hover: Option<Offset>,
-}
-
-impl TileDrawer<Offset<OddCol>> for Drawer {
-    fn draw_tile(
-        &mut self,
-        ctx: &mut Context,
-        coords: Offset<OddCol>,
-        hex: &Hexagon,
-        mb: &mut MeshBuilder
-    ) -> GameResult<()> {
-        mb.polygon(DrawMode::Line(1.), hex.corners());
-        let label = TextCached::new(coords.to_string())?;
-        let pos = hex.position(label.width(ctx) as f32, label.height(ctx) as f32);
-        label.queue(ctx, pos, None);
-        Ok(())
-    }
-
-    // fn finalise(&mut self, ctx: &mut Context, grid_pos: Point2<f32>)
-}
+// struct Drawer {
+// }
 
 const RED: Color = Color { r: 1., g: 0., b: 0., a: 0.7 };
 const BLUE: Color = Color { r: 0., g: 0., b: 1., a: 0.7 };
@@ -70,7 +53,7 @@ const GREY: Color = Color { r: 0.5, g: 0.5, b: 0.5, a: 0.7 };
 impl EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         while ggez::timer::check_update_time(ctx, 60) {
-            let view_updated = self.view.update(ctx)?;
+            let view_updated = self.view.update();
             self.updated = self.updated || view_updated;
         }
         Ok(())
@@ -82,90 +65,69 @@ impl EventHandler for State {
             return Ok(())
         }
 
-        graphics::clear(ctx);
+        graphics::clear(ctx, WHITE);
 
-        set_color(ctx, WHITE)?;
-        self.view.draw(ctx, &mut self.drawer)?;
-        TextCached::draw_queued(ctx, DrawParam {
-            dest: self.view.grid_position(), .. DrawParam::default()
-        })?;
+        let mesh = &mut MeshBuilder::new();
 
-        let mut mesh: MeshBuilder;
+        let dest = DrawParam::default().dest(self.view.grid_position());
+        for (coords, hex) in self.view.iter_viewport() {
+            mesh.polygon(DrawMode::Line(1.), hex.corners(), BLACK)?;
+            let label = Text::new(coords.to_string());
+            let pos = hex.position(label.width(ctx) as f32, label.height(ctx) as f32);
+            graphics::queue_text(ctx, &label, pos, Some(BLACK));
+        }
 
-        // Lines
-        // set_color(ctx, RED)?;
-        // mesh = MeshBuilder::new();
-        // let start: Offset<OddCol> = Offset::new(0,0);
-        // let end = Offset::new(10,4);
-        // let hex_start = self.view.grid().get(start).unwrap();
-        // let hex_end = self.view.grid().get(end).unwrap();
-        // mesh.line(&[hex_start.center(), hex_end.center()], 2.);
-        // let start_cube: Cube = start.into();
-        // let end_cube: Cube = end.into();
-        // let line_hexes = start_cube.beeline(end_cube);
-        // self.view.draw_hexagons(ctx, &mut mesh, line_hexes, DrawMode::Line(2.))?;
-
-        // // Ranges
-        set_color(ctx, BLUE)?;
-        mesh = MeshBuilder::new();
+        // Ranges
         let r1_center: Cube = Offset::<OddCol>::new(20,20).into();
         let r2_center: Cube = Offset::<OddCol>::new(17,15).into();
-        self.view.draw_hexagons(ctx, &mut mesh, r1_center.range(3), DrawMode::Fill)?;
-        self.view.draw_hexagons(ctx, &mut mesh, r2_center.range(3), DrawMode::Fill)?;
+        mesh::hexagons(&self.view, mesh, r1_center.range(3), DrawMode::Fill, BLUE)?;
+        mesh::hexagons(&self.view, mesh, r2_center.range(3), DrawMode::Fill, BLUE)?;
 
         // Overlapping ranges
-        set_color(ctx, GREEN)?;
-        mesh = MeshBuilder::new();
         let r12_overlap = r1_center.range_overlapping(r2_center, 3);
-        self.view.draw_hexagons(ctx, &mut mesh, r12_overlap, DrawMode::Line(3.))?;
+        mesh::hexagons(&self.view, mesh, r12_overlap, DrawMode::Line(3.), GREEN)?;
 
-        // Reachable & visible ranges
-        set_color(ctx, BLACK)?;
-        mesh = MeshBuilder::new();
+        // Obstacles
         let obstacle1: Cube = Offset::<OddCol>::new(7,7).into();
         let obstacle2: Cube = Offset::<OddCol>::new(9,9).into();
-        self.view.draw_hexagons(ctx, &mut mesh, [obstacle1, obstacle2].iter().cloned(), DrawMode::Fill)?;
+        mesh::hexagons(&self.view, mesh, [obstacle1, obstacle2].iter().cloned(), DrawMode::Fill, RED)?;
 
-        set_color(ctx, GREEN)?;
-        mesh = MeshBuilder::new();
+        // Reachable & visible ranges
         let obs_start: Cube = Offset::<OddCol>::new(8,9).into();
         let visible = obs_start.range_visible(3, |x| x != obstacle1 && x != obstacle2);
-        self.view.draw_hexagons(ctx, &mut mesh, visible.into_iter(), DrawMode::Fill)?;
-
-        // set_color(ctx, GREEN)?;
-        // mesh = MeshBuilder::new();
-        // let obs_start: Cube = Offset::<OddCol>::new(8,9).into();
-        // let reachable = obs_start.range_reachable(3, |x| x != obstacle1 && x != obstacle2);
-        // self.view.draw_hexagons(ctx, &mut mesh, reachable.into_iter(), DrawMode::Fill)?;
+        mesh::hexagons(&self.view, mesh, visible.into_iter(), DrawMode::Fill, GREEN)?;
 
         // Rings
-        set_color(ctx, GREY)?;
-        mesh = MeshBuilder::new();
         let ring_center: Cube = Offset::<OddCol>::new(10,4).into();
         let ring = ring_center.walk_ring(FlatTopDirection::NorthEast, 4, Rotation::CW).collect::<Vec<_>>();
-        self.view.draw_hexagons(ctx, &mut mesh, ring.into_iter(), DrawMode::Fill)?;
+        mesh::hexagons(&self.view, mesh, ring.into_iter(), DrawMode::Fill, GREY)?;
 
-        // "HUD"
-        set_color(ctx, BLACK)?;
-        let win_size = get_size(ctx);
+        // Draw grid
+        let grid = mesh.build(ctx)?;
+        graphics::draw(ctx, &grid, dest)?;
+        graphics::draw_queued_text(ctx, dest)?;
+
+        // Draw "HUD"
+        let mesh = &mut MeshBuilder::new();
+        let win_size = graphics::drawable_size(ctx);
         let (win_width, win_height) = (win_size.0 as f32, win_size.1 as f32);
-        graphics::rectangle(ctx, DrawMode::Fill, Rect::new(0.,0.,100.,win_height))?;
-        graphics::rectangle(ctx, DrawMode::Fill, Rect::new(0.,0.,win_width,100.))?;
-        graphics::rectangle(ctx, DrawMode::Fill, Rect::new(0.,win_height - 100.,win_width ,100.))?;
-        graphics::rectangle(ctx, DrawMode::Fill, Rect::new(win_width - 100.,0.,100.,win_height))?;
+        mesh.rectangle(DrawMode::Fill, Rect::new(0.,0.,100.,win_height), BLACK);
+        mesh.rectangle(DrawMode::Fill, Rect::new(0.,0.,win_width,100.), BLACK);
+        mesh.rectangle(DrawMode::Fill, Rect::new(0.,win_height - 100.,win_width ,100.), BLACK);
+        mesh.rectangle(DrawMode::Fill, Rect::new(win_width - 100.,0.,100.,win_height), BLACK);
+        let hud = mesh.build(ctx)?;
+        graphics::draw(ctx, &hud, DrawParam::default())?;
+        self.image.draw(ctx, DrawParam::default())?;
 
-        set_color(ctx, WHITE)?;
-        self.image.draw(ctx, Point2::origin(), 0.0)?;
-
-        graphics::present(ctx);
+        graphics::present(ctx)?;
         self.updated = false;
         timer::yield_now();
 
         Ok(())
     }
 
-    fn key_down_event(&mut self, _ctx: &mut Context, code: Keycode, _mod: Mod, repeat: bool) {
-        use self::Keycode::*;
+    fn key_down_event(&mut self, _ctx: &mut Context, code: KeyCode, _mod: KeyMods, repeat: bool) {
+        use self::KeyCode::*;
         let delta = (10 * if repeat { 2 } else { 1 }) as f32;
         match code {
             Right => self.view.scroll_x(delta),
@@ -176,36 +138,35 @@ impl EventHandler for State {
         }
     }
 
-    fn mouse_motion_event(&mut self, ctx: &mut Context, _state: MouseState, x: i32, y: i32, _xrel: i32, _yrel: i32) {
+    fn mouse_motion_event(&mut self, ctx: &mut Context, x: f32, y: f32, _xrel: f32, _yrel: f32) {
         // self.update.hover = self.view.from_pixel(x, y);
-        self.hover = self.view.from_pixel(x, y).map(|(c,_h)| c);
+        self.hover = self.view.from_pixel(Point2::new(x,y)).map(|(c,_h)| c);
         println!("{:?}", self.hover);
-        let bounds = match get_size(ctx) {
+        let bounds = match graphics::drawable_size(ctx) {
             (w,h) => Bounds {
                 position: Point2::origin(),
                 width: w as f32,
                 height: h as f32
             }
         };
-        self.view.scroll_border(x as f32, y as f32, &bounds, 25., 1.0)
+        self.view.scroll_border(x, y, &bounds, 25., 1.0)
     }
 
-    fn resize_event(&mut self, ctx: &mut Context, width: u32, height: u32) {
-        let screen = Rect::new(0., 0., width as f32, height as f32);
+    fn resize_event(&mut self, ctx: &mut Context, width: f32, height: f32) {
+        let screen = Rect::new(0., 0., width, height);
         set_screen_coordinates(ctx, screen).unwrap();
-        self.view.resize(width - 200, height - 200);
+        self.view.resize(width as u32 - 200, height as u32 - 200);
     }
 }
 
 fn main() -> Result<(), GameError> {
     let mut cfg = conf::Conf::new();
     // cfg.window_mode.width = 1200;
-    cfg.window_setup.resizable = true;
+    cfg.window_mode.resizable = true;
     cfg.window_setup.title = "Hexworld".to_string();
 
     let width = cfg.window_mode.width;
     let height = cfg.window_mode.height;
-    let ctx = &mut Context::load_from_conf("ggez-demo", "nobody", cfg)?;
 
     // ggez::mouse::set_grabbed(ctx, true);
 
@@ -215,26 +176,27 @@ fn main() -> Result<(), GameError> {
     // let grid = Grid::new(schema, shape::hexagon(5));
     let bounds = Bounds {
         position: Point2::new(100., 100.),
-        width: (width - 200) as f32,
-        height: (height - 200) as f32,
+        width: width - 200.,
+        height: height - 200.,
     };
-    let view = GridView::new(grid, bounds);
+    let view = gridview::State::new(grid, bounds);
 
-    ctx.filesystem.mount(std::path::Path::new("/home/roman/dev/hexworld-rs/ggez-demo/assets"), true);
-    ctx.filesystem.print_all();
+    let (ctx, evl) = &mut ContextBuilder::new("ggez-demo", "nobody").conf(cfg).build()?;
+    filesystem::mount(ctx, std::path::Path::new("/home/roman/dev/hexworld-rs/ggez-demo/assets"), true);
+    filesystem::print_all(ctx);
 
     let image = Image::new(ctx, "/shadedDark04.png")?;
-    let font = Font::default_font()?;
-    let drawer = Drawer {};
+    let font = Font::default();
+    // let drawer = Drawer {};
     let state = &mut State {
         view,
         image,
-        drawer,
+        // drawer,
         font,
         updated: true,
         hover: None,
     };
 
-    event::run(ctx, state)
+    event::run(ctx, evl, state)
 }
 

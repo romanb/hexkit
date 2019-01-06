@@ -5,7 +5,7 @@ authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
 
 [dependencies]
-nalgebra = "^0.14"
+nalgebra = "^0.16"
 num-rational = "^0.2"
 num-traits = "^0.2"
 num-derive = "^0.2"

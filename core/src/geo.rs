@@ -160,7 +160,7 @@ impl Schema {
     /// for every schema `s`.
     pub fn to_pixel<P: Into<Point2<f32>>>(&self, p: P) -> Point2<f32> {
         let c = self.to_pixel * p.into().coords;
-        Point2::from_coordinates(c)
+        Point2::from(c)
     }
 
     /// Convert pixel coordinates into hexagon coordinates, satisfying
@@ -170,7 +170,7 @@ impl Schema {
     /// for any point `p` and schema `s`.
     pub fn from_pixel<P: From<Point2<f32>>>(&self, p: Point2<f32>) -> P {
         let c = self.from_pixel * p.coords;
-        P::from(Point2::from_coordinates(c))
+        P::from(Point2::from(c))
     }
 
     fn corners(&self, center: Point2<f32>, off: f32) -> [Point2<f32>; 6] {

@@ -6,4 +6,5 @@ extern crate num_derive;
 
 pub mod geo;
 pub mod grid;
+pub mod ui;
 
