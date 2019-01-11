@@ -14,36 +14,43 @@ use hexworld::grid::shape;
 use hexworld::grid::offset::*;
 use hexworld::grid::cube::vec::*;
 use hexworld::ui::gridview;
+use hexworld::search;
 
 use nalgebra::Point2;
 
+use std::collections::VecDeque;
+use std::collections::HashMap;
+
 struct State {
     view: gridview::State<Offset<OddCol>>,
-    // drawer: Drawer,
     image: Image,
     hover: Option<Offset<OddCol>>,
     updated: bool,
     font: Font,
-    // obstacles: Vec<Cube>,
-    // lines: Vec<(Cube, Cube)>,
+    path: Option<VecDeque<search::Node<Offset<OddCol>>>>,
     // ranges: Vec<(Cube, u16)>,
     // reachable_ranges: Vec<(Cube, u16)>,
     // rings: Vec<(Cube, FlatTopDirection, u16, Rotation)>
+    costs: HashMap<Offset<OddCol>, Option<usize>>,
 }
 
 impl State {
+}
+
+impl search::Context<Offset<OddCol>> for State {
+    // fn max_cost(&mut self) -> usize {
+    //     10
+    // }
+    fn cost(&mut self, _from: Offset<OddCol>, to: Offset<OddCol>) -> Option<usize> {
+        self.view.grid().get(to).and_then(|_|
+            *self.costs.get(&to).unwrap_or(&Some(1)))
+    }
 }
 
 struct Update {
     hover: Option<Offset<OddCol>>,
     resize: Option<(u32,u32)>,
 }
-
-// struct TileState {
-// }
-
-// struct Drawer {
-// }
 
 const RED: Color = Color { r: 1., g: 0., b: 0., a: 0.7 };
 const BLUE: Color = Color { r: 0., g: 0., b: 1., a: 0.7 };
@@ -102,6 +109,12 @@ impl EventHandler for State {
         let ring = ring_center.walk_ring(FlatTopDirection::NorthEast, 4, Rotation::CW).collect::<Vec<_>>();
         mesh::hexagons(&self.view, mesh, ring.into_iter(), DrawMode::Fill, GREY)?;
 
+        // Draw searh path
+        self.path.as_ref().map_or(Ok(()), |p| {
+            let path = p.iter().map(|n| n.coords);
+            mesh::hexagons(&self.view, mesh, path, DrawMode::Line(5.), RED)
+        })?;
+
         // Draw grid
         let grid = mesh.build(ctx)?;
         graphics::draw(ctx, &grid, dest)?;
@@ -124,6 +137,13 @@ impl EventHandler for State {
         timer::yield_now();
 
         Ok(())
+    }
+
+    fn mouse_button_down_event(&mut self, _ctx: &mut Context, _btn: MouseButton, x: f32, y: f32) {
+        if let Some(coords) = self.view.from_pixel(Point2::new(x,y)).map(|(c,_h)| c) {
+            self.path = search::astar::path(Offset::new(0,0), coords, self);
+            self.updated = true;
+        }
     }
 
     fn key_down_event(&mut self, _ctx: &mut Context, code: KeyCode, _mod: KeyMods, repeat: bool) {
@@ -179,6 +199,8 @@ fn main() -> Result<(), GameError> {
         width: width - 200.,
         height: height - 200.,
     };
+    // let mut blocked = std::collections::HashSet::new();
+    // blocked.insert(Offset::new(4,2));
     let view = gridview::State::new(grid, bounds);
 
     let (ctx, evl) = &mut ContextBuilder::new("ggez-demo", "nobody").conf(cfg).build()?;
@@ -195,6 +217,8 @@ fn main() -> Result<(), GameError> {
         font,
         updated: true,
         hover: None,
+        path: None,
+        costs: HashMap::new(),
     };
 
     event::run(ctx, evl, state)

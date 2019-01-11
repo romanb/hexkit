@@ -80,7 +80,7 @@ impl Cube {
     }
 
     /// The distance to another cube coordinate.
-    pub fn distance(&self, other: Cube) -> usize { // TODO: usize
+    pub fn distance(&self, other: Cube) -> usize {
         ( (self.p.x - other.p.x).abs() as usize +
           (self.p.y - other.p.y).abs() as usize +
           (self.p.z - other.p.z).abs() as usize ) / 2
@@ -363,7 +363,6 @@ impl Add<CubeVec> for Cube {
 
     fn add(self, v: CubeVec) -> Cube {
         Cube { p: self.p + v.0 }
-        // Cube::new_xy(self.p.x + v.x(), self.p.y + v.y())
     }
 }
 
@@ -372,7 +371,6 @@ impl Sub<Cube> for Cube {
 
     fn sub(self, other: Cube) -> CubeVec {
         CubeVec(self.p - other.p)
-        // CubeVec::new_xy(self.p.x - other.p.x, self.p.y - other.p.y)
     }
 }
 
@@ -386,13 +384,12 @@ impl Sub<CubeVec> for Cube {
 
 #[cfg(test)]
 mod tests {
-    use crate::grid::*;
+    use super::*;
     use quickcheck::*;
     use rand::{ Rng, thread_rng };
     use std::cmp::max;
     use std::collections::HashSet;
     use std::i32;
-    use super::vec::*;
 
     impl Arbitrary for Cube {
         fn arbitrary<G: Gen>(g: &mut G) -> Cube {
