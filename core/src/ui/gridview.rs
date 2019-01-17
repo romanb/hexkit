@@ -121,25 +121,36 @@ impl<C: Coords> State<C> {
         true
     }
 
+    /// Get an iterator over the hexagons currently in the viewport.
     pub fn iter_viewport(&self) -> impl Iterator<Item=(&C, &Hexagon)> + '_ {
         self.grid.iter_within(&self.viewport)
     }
 
+    /// Schedule a one-time scroll / shift of the viewport's x-coordinate
+    /// for the next update.
     pub fn scroll_x(&mut self, dx: f32) {
-        self.update.scroll.dx += dx;
+        self.update.scroll.dx = dx;
         self.update.scroll.repeat = false;
     }
 
+    /// Schedule a one-time scroll / shift of the viewport's y-coordinate
+    /// for the next update.
     pub fn scroll_y(&mut self, dy: f32) {
-        self.update.scroll.dy += dy;
+        self.update.scroll.dy = dy;
         self.update.scroll.repeat = false;
     }
 
-    /// Border scroll updates are sticky, i.e. once initiated,
-    /// every call to `update` will result in an updated (scrolled)
-    /// view. Scrolling stops only once `scroll_border` is called
-    /// with a position that lies either outside of the given bounds or
-    /// within the given bounds but outside of the border region.
+    /// Schedule repeated scrolling of the viewport's x/y coordinates
+    /// based on the proximity of the given point to the border of the given
+    /// bounds. Typically, the given point represents mouse coordinates and the
+    /// bounds are those of the drawable region of the window, thus realising
+    /// "border scrolling" based on mouse movements near a border of the screen.
+    ///
+    /// Border scroll updates are sticky, i.e. once initiated, every call to
+    /// `update` will result in an updated (scrolled) view. Scrolling stops only
+    /// once `scroll_border` is called with a position that lies either outside
+    /// of the given bounds or within the given bounds but outside of the border
+    /// region.
     pub fn scroll_border(&mut self, x: f32, y: f32, bounds: &Bounds, border: f32, scale: f32) {
         let left_min_x   = bounds.position.x;
         let left_max_x   = left_min_x + border;

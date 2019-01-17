@@ -189,6 +189,18 @@ impl Schema {
         let y = center.y + self.side_len() * angle_rad.sin();
         Point2::new(x, y)
     }
+
+    pub fn valign(&self, hex: &Hexagon, w: f32, h: f32, v: VAlign) -> Point2<f32> {
+        hex.center - match v {
+            VAlign::Top    => Vector2::new(w / 2., h + self.height / 2. + 2.),
+            VAlign::Middle => Vector2::new(w / 2., h / 2.),
+            VAlign::Bottom => Vector2::new(w / 2., h - self.height / 2. + 2.),
+        }
+    }
+}
+
+pub enum VAlign {
+    Top, Middle, Bottom
 }
 
 /// A regular hexagon.
@@ -205,12 +217,6 @@ impl Hexagon {
 
     pub fn corners(&self) -> &[Point2<f32>; 6] {
         &self.corners
-    }
-
-    /// Calculate the position of a bounding box centered w.r.t.
-    /// the hexagon.
-    pub fn position(&self, w: f32, h: f32) -> Point2<f32> {
-        self.center - Vector2::new(w / 2., h / 2.)
     }
 }
 

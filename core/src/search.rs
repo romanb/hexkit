@@ -24,15 +24,16 @@ pub trait Context<C: Coords> {
     fn cost(&mut self, from: C, to: C) -> Option<usize>;
 }
 
-/// A tree is constructed as the result of a search on a grid.
-/// The root node of the tree is the start coordinates of the search
-/// and the paths to the leaves are paths on the grid from the start
-/// coordinates to other grid coordinates.
-pub struct Tree<C> {
-    root: C,
-    parents: HashMap<C, C>,
-    costs: HashMap<C, usize>,
-}
+// pub struct CostContext<F> {
+//     max_cost: usize,
+//     cost: F
+// }
+//
+// impl<C: Coords, F: FnMut(C,C) -> Option<usize>> CostContext<F> {
+//     pub fn new(max_cost: usize, cost: F) -> CostContext<F> {
+//         CostContext { max_cost, cost }
+//     }
+// }
 
 /// A node in a path of a search tree.
 #[derive(Debug)]
@@ -47,7 +48,37 @@ impl<C> Node<C> {
     }
 }
 
+impl<C> std::borrow::Borrow<C> for Node<C> {
+    fn borrow(&self) -> &C {
+        &self.coords
+    }
+}
+
+/// A tree is constructed as the result of a search on a grid.
+/// The root node of the tree is the start coordinates of the search
+/// and the paths to the leaves are paths on the grid from the start
+/// coordinates to other grid coordinates.
+pub struct Tree<C> {
+    root: C,
+    parents: HashMap<C, C>,
+    costs: HashMap<C, usize>,
+}
+
 impl<C: Coords> Tree<C> {
+    pub fn root(&self) -> Node<C> {
+        Node::new(self.root, 0)
+    }
+
+    /// Get the total cost of the path from the root node to the given
+    /// coordinates, if it exists.
+    pub fn cost(&self, coords: C) -> Option<usize> {
+        self.costs.get(&coords).map(|c| *c)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&C, &usize)> {
+        self.costs.iter()
+    }
+
     /// Trace a path from the given goal back to the root of the tree. The path
     /// is returned in the natural (i.e. reverse) order from start to goal.
     pub fn path(&self, goal: C) -> Option<VecDeque<Node<C>>> {
