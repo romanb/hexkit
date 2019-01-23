@@ -36,7 +36,7 @@ pub trait Context<C: Coords> {
 // }
 
 /// A node in a path of a search tree.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Node<C> {
     pub coords: C,
     pub cost: usize,
