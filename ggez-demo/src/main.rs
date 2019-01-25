@@ -1,4 +1,10 @@
 
+mod assets;
+mod entity;
+
+use crate::assets::*;
+use crate::entity::*;
+
 use std::collections::{ HashMap, VecDeque };
 use std::thread;
 use std::time;
@@ -9,7 +15,7 @@ use ggez::audio;
 use ggez::conf::Conf;
 use ggez::event::{ self, EventHandler };
 use ggez::filesystem;
-use ggez::graphics::{ self, Image, Rect, Color, DrawParam, DrawMode };
+use ggez::graphics::{ self, Rect, Color, DrawParam, DrawMode };
 use ggez::graphics::{ Drawable, Scale, MeshBuilder, BLACK, WHITE };
 use ggez::input::keyboard::{ KeyCode, KeyMods };
 use ggez::input::mouse::MouseButton;
@@ -39,31 +45,92 @@ const GREY: Color = Color { r: 0.5, g: 0.5, b: 0.5, a: 0.7 };
 // type Offset = Offset<OddCol>;
 
 struct State {
-    // UI elements
+    // UI state
     view: gridview::State<Offset<OddCol>>,
     scroll_border: scroll::Border,
+    hover: Option<Offset<OddCol>>,
+    selected: Option<Selected>,
+    info: Option<Info>,
+    turn_info: graphics::Text, // TODO: Just 'turn' in UIState
+    menu: Menu,
 
     /// The next command to execute, if any.
     command: Option<Command>,
+    /// Whether the update step of the game loop produced any changes
+    /// that need rendering in the draw step.
     updated: bool,
 
     // Core game state
+    turn: usize,
+    shipyard: Shipyard,
     ships: HashMap<Offset<OddCol>, Ship>,
     costs: HashMap<Offset<OddCol>, usize>,
+    /// There is at most one ongoing movement at a time.
+    movement: Option<Movement>,
 
     // Assets
     images: Images,
     sounds: Sounds,
 
-    // UI state
-    hover: Option<Offset<OddCol>>,
-    selected: Option<Selected>,
-
-    /// There is at most one ongoing movement at a time.
-    movement: Option<Movement>,
 }
 
+pub enum Menu {
+    Main,
+    Space,
+    Shipyard,
+}
+
+struct Info {
+    text: graphics::Text
+}
+
+impl Info {
+    fn new(coords: Offset<OddCol>, entity: &Entity) -> Info {
+        let info = format!("{} - {}", coords, entity.name());
+        let text = graphics::Text::new(info);
+        Info { text }
+    }
+
+    // fn draw(&self, &mut ctx: Context, dp: DrawParam) -> GameResult<()> {
+    //     let width = self.text.width(ctx);
+    //     let dest = Point2::new(width / 2. - info_width as f32, height - 50.);
+    //     info.text.draw(ctx, DrawParam::default().dest(dest))?;
+    // }
+}
+
+// struct Assets {
+//     images: Images,
+//     sounds: Sounds,
+// }
+// 
+// struct UIState {
+//     view: gridview::State<Offset<OddCol>>,
+//     scroll_border: scroll::Border,
+//     hover: Option<Offset<OddCol>>,
+//     selected: Option<Selected>,
+// }
+// 
+// struct GameState {
+//     turn: usize,
+//     shipyard: Shipyard,
+//     ships: HashMap<Offset<OddCol>, Ship>, // fleet
+//     costs: HashMap<Offset<OddCol>, usize>,
+//     /// There is at most one ongoing movement at a time.
+//     movement: Option<Movement>,
+// }
+
 impl State {
+    fn entity(&self, coords: Offset<OddCol>) -> Entity {
+        if self.shipyard.coords == coords {
+            Entity::Shipyard(&self.shipyard)
+        }
+        else if let Some(ship) = self.ships.get(&coords) {
+            Entity::Ship(ship)
+        } else {
+            Entity::Space
+        }
+    }
+
     /// Apply a command to the game state, updating it appropriately.
     /// Execution of a command optionally yields another command to
     /// execute, e.g. to repeat an operation.
@@ -71,7 +138,7 @@ impl State {
         use Command::*;
         match cmd {
             ResizeView(width, height) => {
-                self.view.resize(width as u32 - 200, height as u32 - 200);
+                self.view.resize(width as u32 - 302, height as u32 - 202);
                 let screen = graphics::Rect::new(0., 0., width, height);
                 graphics::set_screen_coordinates(ctx, screen)?;
                 graphics::present(ctx)?;
@@ -97,14 +164,52 @@ impl State {
 
             HoverHexagon(coords) => {
                 self.hover = coords;
-                Ok(None)
+                let mut next = None;
+                if let Some(c) = coords {
+                    let entity = self.entity(c);
+                    match entity {
+                        Entity::Space => {
+                            self.info = Some(Info::new(c, &Entity::Space));
+                            if let Some(ref s) = self.selected {
+                                if let Some(ref r) = s.range {
+                                    if let Some(path) = r.tree.path(c) {
+                                        next = self.apply(ctx, PlanMove(path))?;
+                                    } else {
+                                        next = self.apply(ctx, PlanMove(VecDeque::new()))?;
+                                    }
+                                }
+                            }
+                        },
+                        Entity::Shipyard(yard) => {
+                            self.info = Some(Info::new(c, &Entity::Shipyard(yard)));
+                            next = self.apply(ctx, PlanMove(VecDeque::new()))?;
+                        }
+                        Entity::Ship(ship) => {
+                            self.info = Some(Info::new(c, &Entity::Ship(ship)));
+                            next = self.apply(ctx, PlanMove(VecDeque::new()))?;
+                        }
+                    }
+                } else {
+                    self.info = None;
+                }
+                Ok(next)
             }
 
+            // TODO: Unify SelectHexagon + SelectShip
+            // match self.entity(&coords) ?
             SelectHexagon(selected) => {
                 self.sounds.select.play()?;
                 self.selected = selected.map(|(coords, hexagon)| {
+                    if coords == self.shipyard.coords {
+                        self.menu = Menu::Shipyard
+                    } else {
+                        self.menu = Menu::Space
+                    }
                     Selected { coords, hexagon, range: None }
                 });
+                if self.selected.is_none() {
+                    self.menu = Menu::Main
+                }
                 Ok(None)
             }
 
@@ -117,12 +222,10 @@ impl State {
                         range: ship.range,
                     };
                     let tree = search::astar::tree(coords, None, &mut mv_ctx);
-                    // let path = tree.path(coords); TODO
-                    let path = None;
                     self.selected = Some(Selected {
                         coords,
                         hexagon,
-                        range: Some(MovementRange { tree, path })
+                        range: Some(MovementRange { tree, path: None })
                     });
                 }
                 Ok(None)
@@ -138,25 +241,25 @@ impl State {
             }
 
             Move() => {
-                let path = self.selected.take().and_then(|s| s.range.and_then(|r| r.path)).unwrap_or(
-                    VecDeque::new());
+                let path = self.selected.take()
+                    .and_then(|s| s.range
+                    .and_then(|r| r.path
+                )).unwrap_or(VecDeque::new());
                 let path_vec = Vec::from(path);
                 for from in path_vec.first() {
-                    for to in path_vec.last() {
-                        if from.coords != to.coords {
-                            if let Some(ship) = self.ships.remove(&from.coords) {
-                                let anim = animation::path(UPDATES_PER_SEC, MOVE_HEX_SECS, self.view.grid(), &path_vec);
-                                // TODO: Cut short any previous movement.
-                                let sound = ship.class.sound(&mut self.sounds);
-                                sound.play()?;
-                                sound.set_volume(0.25);
-                                self.movement = Some(Movement {
-                                    goal: to.coords,
-                                    pixel_path: anim,
-                                    pixel_pos: Point2::origin(),
-                                    ship,
-                                });
-                            }
+                    for to in path_vec.last().filter(|c| *c != from) {
+                        if let Some(ship) = self.ships.remove(&from.coords) {
+                            let anim = animation::path(UPDATES_PER_SEC, MOVE_HEX_SECS, self.view.grid(), &path_vec);
+                            // TODO: Cut short any previous movement.
+                            let sound = ship.class.sound(&mut self.sounds);
+                            sound.play()?;
+                            sound.set_volume(0.25);
+                            self.movement = Some(Movement {
+                                goal: to.coords,
+                                pixel_path: anim,
+                                pixel_pos: Point2::origin(),
+                                ship,
+                            });
                         }
                     }
                 }
@@ -174,6 +277,13 @@ impl State {
                 *v = usize::max(1, *v - 1);
                 Ok(None)
             }
+
+            EndTurn() => {
+                // TODO: Recharge shipyard capacity, ship ranges, etc.
+                self.turn += 1;
+                self.turn_info = graphics::Text::new(format!("Turn {}", self.turn));
+                Ok(None)
+            }
         }
     }
 }
@@ -181,9 +291,9 @@ impl State {
 /// Commands are the result of handling user input
 /// and checking it against the current game state.
 enum Command {
-    /// The mouse is close to a border of the game window, thus requesting
-    /// scrolling of the grid.
+    /// Scroll the grid view.
     ScrollView(scroll::Delta, bool),
+    /// Resize the window contents.
     ResizeView(f32, f32),
 
     /// The cursor is hovering over some part of the grid, which may or may not
@@ -197,10 +307,27 @@ enum Command {
     /// Execute the planned move, if any.
     Move(),
 
+    /// Increase the movement cost of the currently selected hexagon.
     IncreaseCost(Offset<OddCol>),
+    /// Decrease the movement cost of the currently selected hexagon.
     DecreaseCost(Offset<OddCol>),
 
+    EndTurn()
 }
+
+// enum Selected2 {
+//     SelectedHexagon(Offset<OddCol>, Hexagon),
+//     SelectedShip(Offset<OddCol>, Hexagon, search::Tree<Offset<OddCol>>),
+// }
+// enum Movement2 {
+//     Planned(VecDeque<search::Node<Offset<OddCol>>>),
+//     InProgress {
+//         goal: Offset<OddCol>,
+//         pixel_path: animation::PathIter,
+//         pixel_pos: Point2<f32>,
+//         ship: Ship,
+//     },
+// }
 
 struct Selected {
     coords: Offset<OddCol>,
@@ -213,112 +340,11 @@ struct MovementRange {
     path: Option<VecDeque<search::Node<Offset<OddCol>>>>,
 }
 
-struct Sounds {
-    select: audio::Source,
-    engine: audio::Source,
-}
-
-impl Sounds {
-    fn load(ctx: &mut Context) -> GameResult<Sounds> {
-        let select = audio::Source::new(ctx, "/select.wav")?;
-        let engine = audio::Source::new(ctx, "/engine2.mp3")?;
-        Ok(Sounds {
-            select, engine
-        })
-    }
-}
-
-struct Images {
-    scout: graphics::Image,
-    fighter: graphics::Image,
-    battleship: graphics::Image,
-    mothership: graphics::Image,
-}
-
-impl Images {
-    fn load(ctx: &mut Context) -> GameResult<Images> {
-        let scout = Image::new(ctx, "/scout.png")?;
-        let fighter = Image::new(ctx, "/fighter.png")?;
-        let battleship = Image::new(ctx, "/battleship.png")?;
-        let mothership = Image::new(ctx, "/mothership.png")?;
-        Ok(Images {
-            scout, fighter, battleship, mothership
-        })
-    }
-}
-
-type ShipId = u16;
-
-enum ShipClass {
-    Fighter, Scout, Battleship, Mothership
-}
-
-struct ShipSpec {
-    range: u16,
-    // attack: u16,
-    // cost: u16,
-}
-
-impl ShipClass {
-    /// Get the (technical) specifications of a ship class,
-    /// describing its game-relevant attributes.
-    fn spec(&self) -> ShipSpec {
-        use ShipClass::*;
-        match self {
-            Fighter => ShipSpec {
-                range: 2,
-            },
-            Scout => ShipSpec {
-                range: 10,
-            },
-            Battleship => ShipSpec {
-                range: 5,
-            },
-            Mothership => ShipSpec {
-                range: 3,
-            }
-        }
-    }
-
-    /// Select an image for a ship class.
-    fn image(&self, images: &Images) -> Image {
-        use ShipClass::*;
-        match self {
-            Fighter => images.fighter.clone(),
-            Scout => images.scout.clone(),
-            Battleship => images.battleship.clone(),
-            Mothership => images.mothership.clone()
-        }
-    }
-
-    fn sound<'a>(&'a self, sounds: &'a mut Sounds) -> &'a mut audio::Source {
-        &mut sounds.engine
-        // use ShipClass::*;
-        // match self {
-
-        // }
-    }
-}
-
-struct Ship {
-    id: ShipId,
-    class: ShipClass,
-    range: u16,
-}
-
 struct Movement {
-    // hex_path: Vec<search::Node<Offset<OddCol>>>,
     goal: Offset<OddCol>,
     pixel_path: animation::PathIter,
     pixel_pos: Point2<f32>,
     ship: Ship,
-}
-
-impl Ship {
-    fn new(id: ShipId, class: ShipClass) -> Ship {
-        let range = class.spec().range;
-        Ship { id, class, range }
-    }
 }
 
 struct MovementContext<'a> {
@@ -329,34 +355,29 @@ struct MovementContext<'a> {
 
 impl<'a> search::Context<Offset<OddCol>> for MovementContext<'a> {
     fn max_cost(&self) -> usize {
-        self.range as usize // self.ships.get(self.selected.coords).range
+        self.range as usize
     }
     fn cost(&mut self, _from: Offset<OddCol>, to: Offset<OddCol>) -> Option<usize> {
-        self.grid.get(to).and_then(|_|
-            self.costs.get(&to).map(|c| *c).or(Some(1)))
+        self.grid.get(to).and_then(|_| self.costs.get(&to).map(|c| *c).or(Some(1)))
     }
 }
 
 impl EventHandler for State {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         while timer::check_update_time(ctx, UPDATES_PER_SEC as u32) {
-            // Apply command
-            let view_updated = self.view.update();
+            // Process the command
+            let view_updated = self.view.update(); // TODO: Remove
             if let Some(cmd) = self.command.take() {
                 self.command = self.apply(ctx, cmd)?;
                 self.updated = true;
             }
-            // Progress movement
+            // Progress movement(s)
             if let Some(ref mut movement) = self.movement {
                 if let Some(pos) = movement.pixel_path.next() {
                     movement.pixel_pos = pos;
                 }
                 else if let Some(mv) = self.movement.take() {
-                    let goal = mv.goal; // .hex_path.last();
-                    let ship = mv.ship;
-                    // goal.map(|to| {
-                        self.ships.insert(goal, ship);
-                    //});
+                    self.ships.insert(mv.goal, mv.ship);
                 }
                 self.updated = true;
             }
@@ -367,24 +388,28 @@ impl EventHandler for State {
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         if !self.updated {
+            // If the game state did not change, do not unnecessarily
+            // consume CPU time by redundant rendering, while still
+            // being responsive to input without a noticable delay.
             thread::sleep(time::Duration::from_millis(10));
             return Ok(())
         }
 
         graphics::clear(ctx, BLACK);
 
-        // Base grid
+        // The base grid
         let mesh = &mut MeshBuilder::new();
         let grid_dest = self.view.grid_position();
         let grid_dp = DrawParam::default().dest(grid_dest);
         let schema = self.view.grid().schema();
         for (coords, hex) in self.view.iter_viewport() {
+            // Hexagon
             mesh.polygon(DrawMode::Line(1.), hex.corners(), GREY)?;
-
+            // Coordinates label
             hexworld_ggez::text::queue_label(
                 ctx, schema, &hex, coords.to_string(),
                 VAlign::Bottom, WHITE, Scale::uniform(12.));
-
+            // Costs label
             let cost = *self.costs.get(coords).unwrap_or(&1);
             hexworld_ggez::text::queue_label(
                 ctx, schema, &hex, cost.to_string(),
@@ -397,7 +422,7 @@ impl EventHandler for State {
                 let coords = r.tree.iter().map(|(&c,_)| c).filter(|c| *c != s.coords);
                 mesh::hexagons(&self.view, mesh, coords, DrawMode::Fill, GREY)?;
                 r.path.as_ref().map_or(Ok(()), |p| {
-                    let path = p.iter().skip(1).map(|n| n.coords); // .filter(|c| *c != s.coords);
+                    let path = p.iter().skip(1).map(|n| n.coords);
                     mesh::hexagons(&self.view, mesh, path, DrawMode::Line(3.), BLUE)
                 })?;
             } else {
@@ -409,11 +434,18 @@ impl EventHandler for State {
         graphics::draw(ctx, &grid, grid_dp)?;
         graphics::draw_queued_text(ctx, grid_dp)?;
 
+        // Shipyard
+        for hex in self.view.grid().get(self.shipyard.coords) {
+            let img = &self.images.shipyard;
+            image::draw_into(ctx, &img, hex, schema, grid_dest)?;
+        }
+
         // Ships
         for (pos, ship) in &self.ships {
             let img = ship.class.image(&self.images);
-            let hex = self.view.grid().get(*pos).unwrap(); // TODO
-            image::draw_into(ctx, &img, hex, schema, grid_dest)?;
+            for hex in self.view.grid().get(*pos) {
+                image::draw_into(ctx, &img, hex, schema, grid_dest)?;
+            }
         }
 
         // Movement
@@ -428,12 +460,34 @@ impl EventHandler for State {
         let mesh = &mut MeshBuilder::new();
         let size = graphics::drawable_size(ctx);
         let (width, height) = (size.0 as f32, size.1 as f32);
-        mesh.rectangle(DrawMode::Fill, Rect::new(0.,0.,100.,height), BLACK);
+        mesh.rectangle(DrawMode::Fill, Rect::new(0.,0.,200.,height), BLACK);
         mesh.rectangle(DrawMode::Fill, Rect::new(0.,0.,width,100.), BLACK);
         mesh.rectangle(DrawMode::Fill, Rect::new(0.,height - 100.,width ,100.), BLACK);
         mesh.rectangle(DrawMode::Fill, Rect::new(width - 100.,0.,100.,height), BLACK);
         let hud = mesh.build(ctx)?;
         graphics::draw(ctx, &hud, DrawParam::default())?;
+
+        // Info box
+        if let Some(info) = &self.info {
+            let info_width = info.text.width(ctx);
+            let dest = Point2::new(width / 2. - info_width as f32 / 2., height - 50.);
+            info.text.draw(ctx, DrawParam::default().dest(dest))?;
+        }
+
+        // Turn tracker
+        let turn_width = self.turn_info.width(ctx);
+        let dest = Point2::new(width / 2. - turn_width as f32 / 2., 50.);
+        self.turn_info.draw(ctx, DrawParam::default().dest(dest))?;
+
+        // Menu
+        let menu_text = match self.menu {
+            Menu::Main => graphics::Text::new("<Main>"),
+            Menu::Shipyard => graphics::Text::new("<Shipyard>"),
+            Menu::Space => graphics::Text::new("<Space>"),
+        };
+        let menu_width = menu_text.width(ctx);
+        let dest = Point2::new(100. - menu_width as f32 / 2., 100.);
+        menu_text.draw(ctx, DrawParam::default().dest(dest))?;
 
         graphics::present(ctx)?;
         self.updated = false;
@@ -450,9 +504,11 @@ impl EventHandler for State {
                 // ... that is a ship position.
                 self.command = Some(Command::SelectShip(coords, hexagon, ship.id));
             }
-            else if let Some(ref r) = self.selected.as_ref().and_then(|s| s.range.as_ref()) {
+            else if let Some(ref r) = self.selected.as_ref().and_then(|s| s.range.as_ref()) { // TODO
                 // ... with an active movement plan.
-                if r.path.as_ref().filter(|p| p.back().map(|n| n.coords) == Some(coords)).is_some() {
+                if r.path.as_ref().filter(|p| p.back().map(|n| n.coords) == Some(coords)).is_some() { // TODO
+                    // Selected the target hexagon of the current movement plan,
+                    // thus execute the planned move.
                     self.command = Some(Command::Move());
                 } else {
                     self.command = Some(Command::SelectHexagon(Some((coords, hexagon))));
@@ -487,33 +543,25 @@ impl EventHandler for State {
             // Deselect
             KeyCode::Escape => Some(Command::SelectHexagon(None)),
 
+            // End turn
+            KeyCode::Return => Some(Command::EndTurn()),
+
             // Unknown
             _ => None
         }
     }
 
-    fn mouse_motion_event(&mut self, _: &mut Context, x: f32, y: f32, _: f32, _: f32) {
+    fn mouse_motion_event(&mut self, _ctx: &mut Context, x: f32, y: f32, _: f32, _: f32) {
         let scroll = self.scroll_border.eval(x, y);
         self.command = if scroll.dx != 0.0 || scroll.dy != 0.0 {
             Some(Command::ScrollView(scroll, true))
         } else {
-            let coords = self.view.from_pixel(Point2::new(x,y)).map(|(c,_h)| c);
-            coords.and_then(|c| {
-                if !self.ships.contains_key(&c) {
-                    self.selected.as_ref().and_then(|s| {
-                        s.range.as_ref().and_then(|r| {
-                            r.tree.path(c).map(|p| {
-                                Command::PlanMove(p)
-                            })
-                        })
-                    })
-                } else {
-                    // None
-                    Some(Command::PlanMove(VecDeque::new()))
-                }
-            }).or_else(|| {
+            let coords = self.view.from_pixel(Point2::new(x,y)).map(|(c,_)| c);
+            if coords != self.hover {
                 Some(Command::HoverHexagon(coords))
-            })
+            } else {
+                None
+            }
         }
     }
 
@@ -526,63 +574,66 @@ fn main() -> Result<(), GameError> {
     let mut cfg = Conf::new();
     cfg.window_mode.resizable = true;
     cfg.window_setup.title = "Hexworld".to_string();
-
     let width = cfg.window_mode.width;
     let height = cfg.window_mode.height;
 
     // mouse::set_grabbed(ctx, true);
 
+    // Setup the hexagonal grid
     let schema = Schema::new(SideLength(50.), Orientation::FlatTop);
     let grid = Grid::new(schema, shape::rectangle_xz_odd(30,30));
     let bounds = Bounds {
-        position: Point2::new(100., 100.),
-        width: width - 200.,
-        height: height - 200.,
+        position: Point2::new(201., 101.),
+        width: width - 302.,
+        height: height - 302.,
     };
     let view = gridview::State::new(grid, bounds);
 
-    let (ctx, evl) = &mut ContextBuilder::new("ggez-demo", "nobody").conf(cfg).build()?;
-    filesystem::mount(ctx, Path::new("ggez-demo/assets"), true);
-
-    // TODO: Create initial ship
-    // let image = Image::new(ctx, "/ship4.png")?;
-    let images = Images::load(ctx)?;
-    let sounds = Sounds::load(ctx)?;
-
+    // A border region for scrolling the view
     let scroll_border = scroll::Border {
-        bounds: Bounds {
-            position: Point2::origin(),
-            width,
-            height
-        },
+        bounds: Bounds { position: Point2::origin(), width, height },
         scale: 1.0,
         width: 25.0,
     };
 
-    let mut ships = HashMap::new();
-    ships.insert(Offset::new(0,0), Ship::new(1, ShipClass::Mothership));
-    ships.insert(Offset::new(1,1), Ship::new(2, ShipClass::Scout));
-    ships.insert(Offset::new(0,3), Ship::new(3, ShipClass::Fighter));
-    ships.insert(Offset::new(2,2), Ship::new(4, ShipClass::Battleship));
+    // Load assets
+    let (ctx, evl) = &mut ContextBuilder::new("ggez-demo", "nobody").conf(cfg).build()?;
+    filesystem::mount(ctx, Path::new("ggez-demo/assets"), true);
+    let images = assets::Images::load(ctx)?;
+    let sounds = assets::Sounds::load(ctx)?;
 
+    // Intitial ship setup
+    let mut shipyard = Shipyard::new(Offset::new(0,0), 1);
+    let mut ships = HashMap::new();
+    ships.insert(Offset::new(3,0), shipyard.new_ship(ShipClass::Carrier));
+    ships.insert(Offset::new(1,1), shipyard.new_ship(ShipClass::Scout));
+    ships.insert(Offset::new(0,3), shipyard.new_ship(ShipClass::Fighter));
+    ships.insert(Offset::new(2,2), shipyard.new_ship(ShipClass::Battleship));
+
+    // Start background music
+    let mut music = audio::Source::new(ctx, "/background-track.mp3")?;
+    music.set_repeat(true);
+    music.play()?;
+
+    // Run the game
     let state = &mut State {
+        turn: 1,
+        turn_info: graphics::Text::new("Turn 1"),
         view,
         scroll_border,
         images,
         sounds,
         updated: false,
         costs: HashMap::new(),
+        shipyard,
         ships,
         selected: None,
         hover: None,
         command: None,
         movement: None,
+        info: None,
+        menu: Menu::Main,
     };
-
-    let mut music = audio::Source::new(ctx, "/background-track.mp3")?;
-    music.set_repeat(true);
-    music.play()?;
-
     event::run(ctx, evl, state)
 }
 

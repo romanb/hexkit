@@ -42,6 +42,14 @@ pub struct Node<C> {
     pub cost: usize,
 }
 
+impl<C: Coords> PartialEq for Node<C> {
+    fn eq(&self, other: &Node<C>) -> bool {
+        self.coords == other.coords
+    }
+}
+
+impl<C: Coords> Eq for Node<C> {}
+
 impl<C> Node<C> {
     fn new(coords: C, cost: usize) -> Node<C> {
         Node { coords, cost }
