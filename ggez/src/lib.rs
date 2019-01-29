@@ -136,6 +136,7 @@ pub mod animation {
         }
     }
 
+    // search::Path::to_pixel ?
     pub fn path<C, T>(ups: u16, secs: f32, grid: &Grid<C>, path: &[T]) -> PathIter
     where C: Coords,
           T: Borrow<C>

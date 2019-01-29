@@ -3,13 +3,26 @@ use ggez::{ GameResult, Context };
 use ggez::audio;
 use ggez::graphics;
 
+pub struct Assets {
+    pub images: Images,
+    pub sounds: Sounds,
+}
+
+impl Assets {
+    pub fn load(ctx: &mut Context) -> GameResult<Assets> {
+        let images = Images::load(ctx)?;
+        let sounds = Sounds::load(ctx)?;
+        Ok(Assets { images, sounds })
+    }
+}
+
 pub struct Sounds {
     pub select: audio::Source,
     pub engine: audio::Source,
 }
 
 impl Sounds {
-    pub fn load(ctx: &mut Context) -> GameResult<Sounds> {
+    fn load(ctx: &mut Context) -> GameResult<Sounds> {
         let select = audio::Source::new(ctx, "/select.wav")?;
         let engine = audio::Source::new(ctx, "/engine2.mp3")?;
         Ok(Sounds {
@@ -27,7 +40,7 @@ pub struct Images {
 }
 
 impl Images {
-    pub fn load(ctx: &mut Context) -> GameResult<Images> {
+    fn load(ctx: &mut Context) -> GameResult<Images> {
         let scout = graphics::Image::new(ctx, "/scout.png")?;
         let fighter = graphics::Image::new(ctx, "/fighter.png")?;
         let battleship = graphics::Image::new(ctx, "/battleship.png")?;

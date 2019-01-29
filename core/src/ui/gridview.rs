@@ -87,6 +87,17 @@ impl<C: Coords> State<C> {
     }
 
     pub fn from_pixel(&self, p: Point2<f32>) -> Option<(C, &Hexagon)> {
+        // FIXME: Turn self.position into bounds. self.viewport and
+        // self.bounds differ only in position - width and height must
+        // be kept in-sync.
+        let bounds = Bounds {
+            position: self.position,
+            width: self.width(),
+            height: self.height()
+        };
+        if !bounds.contains(p) {
+            return None
+        }
         self.grid.from_pixel(p - self.position.coords + self.viewport.position.coords)
     }
 
