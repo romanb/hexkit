@@ -17,16 +17,20 @@ impl Assets {
 }
 
 pub struct Sounds {
+    pub soundtrack: audio::Source,
     pub select: audio::Source,
     pub engine: audio::Source,
+    pub button: audio::Source,
 }
 
 impl Sounds {
     fn load(ctx: &mut Context) -> GameResult<Sounds> {
+        let soundtrack = audio::Source::new(ctx, "/soundtrack.mp3")?;
         let select = audio::Source::new(ctx, "/select.wav")?;
-        let engine = audio::Source::new(ctx, "/engine2.mp3")?;
+        let button = audio::Source::new(ctx, "/button.mp3")?;
+        let engine = audio::Source::new(ctx, "/engine.mp3")?;
         Ok(Sounds {
-            select, engine
+            soundtrack, select, engine, button
         })
     }
 }
@@ -37,6 +41,8 @@ pub struct Images {
     pub battleship: graphics::Image,
     pub carrier: graphics::Image,
     pub shipyard: graphics::Image,
+    pub asteroid_small: graphics::Image,
+    pub asteroid_large: graphics::Image,
 }
 
 impl Images {
@@ -46,8 +52,12 @@ impl Images {
         let battleship = graphics::Image::new(ctx, "/battleship.png")?;
         let carrier = graphics::Image::new(ctx, "/carrier.png")?;
         let shipyard = graphics::Image::new(ctx, "/shipyard.png")?;
+        let asteroid_small = graphics::Image::new(ctx, "/asteroid-small.png")?;
+        let asteroid_large = graphics::Image::new(ctx, "/asteroid-large.png")?;
         Ok(Images {
-            scout, fighter, battleship, carrier, shipyard
+            shipyard,
+            scout, fighter, battleship, carrier,
+            asteroid_small, asteroid_large
         })
     }
 }

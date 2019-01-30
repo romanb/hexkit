@@ -1,62 +1,78 @@
 
+use crate::assets::{ Images, Sounds };
+
 use ggez::graphics;
 use ggez::audio;
-// use hexworld::grid::offset::*;
-use std::borrow::Cow;
 
-use crate::assets::{ Images, Sounds };
+use std::borrow::Cow;
 
 pub enum Entity {
     Shipyard(Shipyard),
     Ship(Ship),
+    Asteroid(Asteroid),
 }
 
-pub trait SomeEntity {
-    fn name(&self) -> Cow<str>;
-    fn image<'a>(&'a self, images: &'a Images) -> &'a graphics::Image;
-    fn sound<'a>(&'a self, sounds: &'a mut Sounds) -> &'a mut audio::Source;
-    fn range(&self) -> u16;
-    fn reduce_range(&mut self, sub: u16);
-}
+// pub trait SomeEntity {
+//     fn name(&self) -> Cow<str>;
+//     fn image<'a>(&'a self, images: &'a Images) -> &'a graphics::Image;
+//     fn sound<'a>(&'a self, sounds: &'a mut Sounds) -> &'a mut audio::Source;
+//     fn range(&self) -> u16;
+//     fn reduce_range(&mut self, sub: u16);
+// }
 
 impl Entity {
+    // pub fn as_dyn(&self) -> Box<dyn SomeEntity> {
+    //     Box::new(match self {
+    //         Entity::Shipyard(yard) => yard as &SomeEntity,
+    //         Entity::Ship(ship) => ship as &SomeEntity,
+    //         Entity::Asteroid(ast) => ast as &SomeEntity,
+    //     })
+    // }
+
     pub fn name(&self) -> Cow<str> {
         use Entity::*;
         match self {
-            Ship(ship) => Cow::Owned(ship.name()),
+            Ship(ship)  => Cow::Owned(ship.name()),
             Shipyard(_) => Cow::Borrowed("Shipyard"),
+            Asteroid(_) => Cow::Borrowed("Asteroid"),
         }
     }
 
     pub fn image<'a>(&'a self, images: &'a Images) -> &'a graphics::Image {
         use Entity::*;
         match self {
-            Ship(ship) => ship.class.image(images),
-            Shipyard(_) => &images.shipyard,
+            Ship(ship)     => ship.class.image(images),
+            Shipyard(_)    => &images.shipyard,
+            Asteroid(size) => match size {
+                self::Asteroid::Small => &images.asteroid_small,
+                self::Asteroid::Large => &images.asteroid_large,
+            }
         }
     }
 
     pub fn range(&self) -> u16 {
         use Entity::*;
         match self {
-            Ship(ship) => ship.range,
+            Ship(ship)  => ship.range,
             Shipyard(_) => 0,
+            Asteroid(_) => 0,
         }
     }
 
     pub fn reduce_range(&mut self, sub: u16) {
         use Entity::*;
         match self {
-            Ship(ship) => ship.range -= sub,
+            Ship(ship)  => ship.range -= sub,
             Shipyard(_) => {}
+            Asteroid(_) => {}
         }
     }
 
-    pub fn sound<'a>(&'a self, sounds: &'a mut Sounds) -> &'a mut audio::Source {
+    pub fn sound<'a>(&'a self, sounds: &'a mut Sounds) -> Option<&'a mut audio::Source> {
         use Entity::*;
         match self {
-            Ship(ship) => ship.class.sound(sounds),
-            Shipyard(_) => &mut sounds.engine
+            Ship(ship) => Some(ship.class.sound(sounds)),
+            _          => None,
         }
     }
 }
@@ -94,7 +110,7 @@ impl Shipyard {
 
 pub type ShipId = u16;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum ShipClass {
     Fighter, Scout, Battleship, Carrier
 }
@@ -105,7 +121,18 @@ pub struct ShipSpec {
     pub shipyard_capacity: u16,
 }
 
+const SHIP_CLASSES: [ShipClass; 4] =
+    [ ShipClass::Fighter
+    , ShipClass::Scout
+    , ShipClass::Carrier
+    , ShipClass::Battleship
+    ];
+
 impl ShipClass {
+    pub fn iter() -> impl Iterator<Item=ShipClass> {
+        SHIP_CLASSES.iter().map(|c| *c)
+    }
+
     /// Get the (technical) specifications of a ship class,
     /// describing its game-relevant attributes.
     pub fn spec(&self) -> ShipSpec {
@@ -178,5 +205,16 @@ impl Ship {
 //     fn name(&self) -> &str {
 //         self.class.name()
 //     }
+// }
+
+#[derive(Copy, Clone, Debug)]
+pub enum Asteroid {
+    Small,
+    Large
+}
+
+// pub struct Asteroid {
+//     size: AsteroidSize,
+//     hitpoints: u16,
 // }
 

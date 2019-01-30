@@ -3,12 +3,18 @@ use ggez::{ Context, GameResult };
 use ggez::graphics;
 use nalgebra::Point2;
 
+/// A menu with equally-sized, vertically-stacked menu items.
 pub struct Menu<T> {
+    bounds: graphics::Rect,
     items: Vec<MenuItem<T>>,
-    // position: Point2<f32>,
     item_width: f32,
     item_height: f32,
+}
+
+struct MenuItem<T> {
+    ident: T,
     bounds: graphics::Rect,
+    text: graphics::Text,
 }
 
 impl<T> Menu<T> {
@@ -21,7 +27,7 @@ impl<T> Menu<T> {
         }
     }
 
-    /// Add an item to the end of the menu.
+    /// Add an item to the end (i.e. bottom) of the menu.
     pub fn add(&mut self, ident: T, label: &str) {
         let x = self.bounds.x;
         let y = self.bounds.y + self.item_height * self.items.len() as f32;
@@ -32,6 +38,8 @@ impl<T> Menu<T> {
             text: graphics::Text::new(label)
         })
     }
+
+    // pub fn get(&self, ident: &T) -> Option<MenuItem<T>> {}
 
     /// Evaluate whether the given point falls within the bounds of
     /// a menu item, returning the item's identifier.
@@ -61,12 +69,6 @@ impl<T> Menu<T> {
         graphics::draw_queued_text(ctx, param)?;
         Ok(())
     }
-}
-
-struct MenuItem<T> {
-    ident: T,
-    bounds: graphics::Rect,
-    text: graphics::Text,
 }
 
 
