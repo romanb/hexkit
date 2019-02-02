@@ -3,6 +3,7 @@ pub mod astar;
 pub mod bfs;
 
 use crate::grid::Coords;
+use crate::grid::coords;
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -19,7 +20,7 @@ pub trait Context<C: Coords> {
         false
     }
     fn heuristic(&mut self, from: C, to: C) -> usize {
-        from.into().distance(to.into())
+        coords::distance(from, to)
     }
     fn cost(&mut self, from: C, to: C) -> Option<usize>;
 }
@@ -99,8 +100,7 @@ impl<C: Coords> Tree<C> {
     /// Trace a path from the given goal back to the root of the tree. The path
     /// is returned in the natural (i.e. reverse) order from start to goal.
     pub fn path(&self, goal: C) -> Option<Path<C>> {
-        // let mut path = VecDeque::with_capacity(coords::distance(self.start, goal));
-        let mut path = VecDeque::with_capacity(self.root.into().distance(goal.into()));
+        let mut path = VecDeque::with_capacity(coords::distance(self.root, goal));
         let gnode = Node::new(goal, *self.costs.get(&goal).unwrap_or(&0));
         path.push_front(gnode);
         let mut current = &goal;

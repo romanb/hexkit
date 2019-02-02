@@ -3,7 +3,7 @@
 //!
 //! The `.` in the ASCII-art indicates the origin, i.e. `(0,0,0)`.
 
-use super::*;
+use super::coords::{ self, Cube };
 
 #[derive(Clone)]
 pub struct Shape<I: IntoIterator<Item=Cube>> {
@@ -51,8 +51,8 @@ impl<I: IntoIterator<Item=Cube>> IntoIterator for Shape<I> {
 /// ```
 pub fn hexagon(side_length: u16) -> Shape<impl Iterator<Item=Cube>> {
     assert!(side_length > 0, "side_length == 0");
-    let data = Cube::origin().range(side_length - 1);
-    Shape { data, total: Cube::num_in_range(side_length - 1) }
+    let data = coords::range(Cube::origin(), side_length - 1);
+    Shape { data, total: coords::num_in_range(side_length - 1) }
 }
 
 //////////////////////////////////////////////////////////////////////////////

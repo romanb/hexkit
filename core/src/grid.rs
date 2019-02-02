@@ -1,22 +1,14 @@
 //! Hexagonal grids with overlaid coordinate systems.
-pub mod axial;
-pub mod cube;
-pub mod offset;
 pub mod shape;
+pub mod coords;
+pub use coords::*;
 
-pub use self::cube::*;
-pub use crate::geo::*;
-    use crate::grid::shape::Shape;
+use crate::geo::*;
+use crate::grid::shape::Shape;
 
 use nalgebra::core::Vector2;
 use nalgebra::geometry::Point2;
-use std::hash::Hash;
-use std::fmt::{ Debug, Display };
 use std::collections::HashMap;
-
-pub trait Coords:
-    From<Cube> + Into<Cube> + Eq + Copy + Debug + Display + Hash {
-}
 
 /// A grid is a contiguous arrangement of hexagonal tiles with
 /// an overlaid coordinate system.

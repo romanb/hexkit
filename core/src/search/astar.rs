@@ -3,8 +3,8 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
 
-use crate::grid::{ Coords, Cube };
-use crate::grid::coords;
+use crate::grid::Coords;
+use crate::grid::coords::{ self, Cube };
 
 use super::{ Context, Tree, Path };
 
@@ -66,7 +66,7 @@ pub fn tree<C: Coords>(
         // for n in coords::neighbours(c) {
         for child in coords::neighbours(parent.coords) {
             let cc = C::from(child);
-            if child.distance(root) > max_distance {
+            if coords::distance(child, root) > max_distance {
                 continue
             }
             let new_cost = if let Some(cost) = ctx.cost(pc, cc) {

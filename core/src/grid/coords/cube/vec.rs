@@ -55,8 +55,7 @@ impl CubeVec {
         CUBE_DIA_VECTORS.iter().map(|v| CubeVec(Vector3::from(*v)))
     }
 
-    pub fn walk_directions<D>(d: D, r: Rotation)
-    -> impl ExactSizeIterator<Item=CubeVec>
+    pub fn walk_directions<D>(d: D, r: Rotation) -> impl ExactSizeIterator<Item=CubeVec>
     where D: Direction {
         let dirs = Self::directions();
         match r {
@@ -96,6 +95,7 @@ struct WalkDirIterator<I: Iterator<Item=CubeVec>> {
 
 impl<I: Iterator<Item=CubeVec>> Iterator for WalkDirIterator<I> {
     type Item = I::Item;
+
     fn next(&mut self) -> Option<CubeVec> {
         if self.remaining == 0 {
             return None
@@ -103,6 +103,7 @@ impl<I: Iterator<Item=CubeVec>> Iterator for WalkDirIterator<I> {
         self.remaining -= 1;
         self.inner.next()
     }
+
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.remaining, Some(self.remaining))
     }

@@ -7,6 +7,12 @@ use std::marker::PhantomData;
 
 use super::*;
 
+/// Different types of offset coordinates are specialised
+/// to different types of rectangular, axis-aligned grids
+/// such that their conversion from cube coordinates yields
+/// only non-negative offset coordinates. For differently
+/// shaped grids the choice of offset coordinate type is
+/// insignificant.
 pub trait OffsetType: Debug + Hash + Eq + Copy + Clone + Send + 'static {}
 
 /// Offset coordinates.

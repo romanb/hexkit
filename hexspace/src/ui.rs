@@ -7,6 +7,7 @@ use ggez::{ Context, GameResult };
 use ggez::graphics;
 use ggez::graphics::*;
 use hexworld::geo::*;
+use hexworld::grid::coords;
 use hexworld::grid::Grid;
 use hexworld::grid::offset::{ Offset, OddCol };
 use hexworld::grid::shape;
@@ -268,13 +269,11 @@ impl State {
         class: world::ShipClass
     ) -> Option<Offset<OddCol>> {
         if let Some(s) = &self.selected {
-            if let Some(free) = hexworld::grid::Cube::from(s.coords)
-                .neighbours()
+            if let Some(free) = coords::neighbours(s.coords)
                 .find_map(|n|
-                    Some(Offset::from(n))
-                        .filter(|o|
-                            self.view.grid().get(*o).is_some() &&
-                            world.entity(*o).is_none()))
+                    Some(n).filter(|o|
+                        self.view.grid().get(*o).is_some() &&
+                        world.entity(*o).is_none()))
             {
                 if world.new_ship(s.coords, free, class).is_some() {
                     return Some(free)
