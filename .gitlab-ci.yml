@@ -4,7 +4,7 @@ stages:
 
 before_script:
   - apt -qq update
-  - apt -qq -y install libasound2-dev
+  - apt -qq -y install libasound2-dev libudev-dev
 
 test-stable:
   stage: test
