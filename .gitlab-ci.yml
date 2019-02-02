@@ -2,6 +2,10 @@ stages:
   - test
   - deploy
 
+before_script:
+  - apt -qq update
+  - apt -qq -y install libasound2-dev
+
 test-stable:
   stage: test
   image: "rust:latest"
