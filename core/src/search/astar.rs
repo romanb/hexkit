@@ -2,11 +2,11 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::collections::HashMap;
-use std::collections::VecDeque;
 
 use crate::grid::{ Coords, Cube };
+use crate::grid::coords;
 
-use super::{ Context, Tree, Node };
+use super::{ Context, Tree, Path };
 
 /// A node in the "open" list of the A* algorithm to prioritise the search.
 struct Open {
@@ -64,7 +64,7 @@ pub fn tree<C: Coords>(
             break
         }
         // for n in coords::neighbours(c) {
-        for child in parent.coords.neighbours() {
+        for child in coords::neighbours(parent.coords) {
             let cc = C::from(child);
             if child.distance(root) > max_distance {
                 continue
@@ -102,7 +102,7 @@ pub fn path<C: Coords>(
     start: C,
     goal: C,
     ctx: &mut impl Context<C>
-) -> Option<VecDeque<Node<C>>> {
+) -> Option<Path<C>> {
     tree(start, Some(goal), ctx).path(goal)
 }
 

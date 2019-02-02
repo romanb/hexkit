@@ -1,5 +1,5 @@
 [package]
-name = "hexworld-ggez-demo"
+name = "hexspace"
 version = "0.1.0"
 authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 hexworld = { path = "../core" }
 hexworld-ggez = { path = "../ggez" }
-# ggez = "0.5.0-rc.0"
-ggez = { path = "../../ggez" }
+ggez = { git = "https://github.com/ggez/ggez" }
 nalgebra = "^0.16"
 

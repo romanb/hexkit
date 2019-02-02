@@ -24,17 +24,6 @@ pub trait Context<C: Coords> {
     fn cost(&mut self, from: C, to: C) -> Option<usize>;
 }
 
-// pub struct CostContext<F> {
-//     max_cost: usize,
-//     cost: F
-// }
-//
-// impl<C: Coords, F: FnMut(C,C) -> Option<usize>> CostContext<F> {
-//     pub fn new(max_cost: usize, cost: F) -> CostContext<F> {
-//         CostContext { max_cost, cost }
-//     }
-// }
-
 /// A node in a path of a search tree.
 #[derive(Debug, Clone)]
 pub struct Node<C> {
@@ -59,6 +48,26 @@ impl<C> Node<C> {
 impl<C> std::borrow::Borrow<C> for Node<C> {
     fn borrow(&self) -> &C {
         &self.coords
+    }
+}
+
+pub struct Path<C>(VecDeque<Node<C>>);
+
+impl<C> std::ops::Deref for Path<C> {
+    type Target = VecDeque<Node<C>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<C> Path<C> {
+    pub fn empty() -> Path<C> {
+        Path(VecDeque::new())
+    }
+
+    pub fn to_vec(self) -> Vec<Node<C>> {
+        Vec::from(self.0)
     }
 }
 
@@ -89,7 +98,7 @@ impl<C: Coords> Tree<C> {
 
     /// Trace a path from the given goal back to the root of the tree. The path
     /// is returned in the natural (i.e. reverse) order from start to goal.
-    pub fn path(&self, goal: C) -> Option<VecDeque<Node<C>>> {
+    pub fn path(&self, goal: C) -> Option<Path<C>> {
         // let mut path = VecDeque::with_capacity(coords::distance(self.start, goal));
         let mut path = VecDeque::with_capacity(self.root.into().distance(goal.into()));
         let gnode = Node::new(goal, *self.costs.get(&goal).unwrap_or(&0));
@@ -104,7 +113,7 @@ impl<C: Coords> Tree<C> {
                 return None
             }
         }
-        Some(path)
+        Some(Path(path))
     }
 }
 

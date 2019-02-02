@@ -1,9 +1,10 @@
 
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use super::{ Context, Tree, Node };
+use super::{ Context, Tree, Path };
 
 use crate::grid::Coords;
+use crate::grid::coords;
 
 /// Beginning at the given start coordinates, perform a breadth-first-search
 /// across the grid, subject to the constraints of the given options, returning
@@ -32,7 +33,7 @@ pub fn tree<C: Coords>(
         if ctx.exit(cc) || goal.map_or(false, |g| g == cc) {
             break
         }
-        for n in c.neighbours() {
+        for n in coords::neighbours(c) {
             let nc = C::from(n);
             if d < max_distance
                 && !parents.contains_key(&nc)
@@ -58,7 +59,7 @@ pub fn path<C: Coords>(
     start: C,
     goal: C,
     ctx: &mut impl Context<C>
-) -> Option<VecDeque<Node<C>>> {
+) -> Option<Path<C>> {
     tree(start, Some(goal), ctx).path(goal)
 }
 

@@ -17,7 +17,7 @@ pub mod mesh {
         color: Color,
     ) -> GameResult<()> {
         for t in it {
-            if let Some(hex) = view.grid().get((*t.borrow())) {
+            if let Some(hex) = view.grid().get(*t.borrow()) {
                 let hex_bounds = view.grid().schema().bounds(hex);
                 if view.viewport().intersects(&hex_bounds) {
                     mesh.polygon(mode, hex.corners(), color)?;

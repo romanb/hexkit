@@ -1,7 +1,7 @@
 
-use ggez::{ GameResult, Context };
-use ggez::audio;
-use ggez::graphics;
+pub use ggez::graphics;
+pub use ggez::audio;
+    use ggez::{ GameResult, Context };
 
 pub struct Assets {
     pub images: Images,

@@ -55,7 +55,7 @@ impl<T> Menu<T> {
     pub fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         let mut mesh = graphics::MeshBuilder::new();
         for item in &self.items {
-            mesh.rectangle(graphics::DrawMode::Line(2.0), item.bounds, graphics::WHITE);
+            mesh.rectangle(graphics::DrawMode::stroke(2.0), item.bounds, graphics::WHITE);
             let text_w = item.text.width(ctx) as f32;
             let text_h = item.text.height(ctx) as f32;
             let pos = Point2::new(

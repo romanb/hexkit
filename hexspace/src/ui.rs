@@ -1,8 +1,6 @@
 
 use crate::assets::*;
-use crate::entity::*;
 use crate::menu::*;
-use crate::movement::*;
 use crate::world;
 
 use ggez::{ Context, GameResult };
@@ -20,7 +18,6 @@ use hexworld_ggez::image;
 use hexworld_ggez::mesh;
 use nalgebra::{ Point2, Vector2 };
 
-use std::collections::VecDeque;
 use std::borrow::Cow;
 
 pub const RED:  graphics::Color = graphics::Color { r: 1.,  g: 0.,  b: 0.,  a: 0.7 };
@@ -33,8 +30,8 @@ pub const UPDATES_PER_SEC: u16 = 60;
 // TODO: type Offset = coords::Offset<coords::OddCol>;
 // TODO: type OffsetMap<T> = HashMap<Offset,T>;
 
-/// The commands that drive the game (state).
-pub enum Command { // Input?
+/// The input commands that drive the UI and game state.
+pub enum Input {
     /// Scroll the grid view.
     ScrollView(scroll::Delta, bool),
     /// Resize the window contents.
@@ -51,17 +48,19 @@ pub enum Command { // Input?
     EndTurn()
 }
 
+/// The UI game state through which the user interacts with
+/// the core game state.
 pub struct State {
-        view: gridview::State<Offset<OddCol>>,
-    pub scroll_border: scroll::Border,
-    pub hover: Option<Offset<OddCol>>,
-        selected: Option<Selected>,
-        info: Option<Info>,
-        turn: graphics::Text,
-    pub panel: ControlPanel,
-        settings: Settings,
-        movement: Option<Movement>,
-        assets: Assets,
+    view: gridview::State<Offset<OddCol>>,
+    scroll_border: scroll::Border,
+    hover: Option<Offset<OddCol>>,
+    selected: Option<Selected>,
+    info: Option<Info>,
+    turn: graphics::Text,
+    panel: ControlPanel,
+    settings: Settings,
+    movement: Option<Movement>,
+    assets: Assets,
 }
 
 impl State {
@@ -103,16 +102,33 @@ impl State {
         }
     }
 
+    pub fn menu(&self) -> &Menu<Button> {
+        &self.panel.menu
+    }
+
+    pub fn hover(&self) -> Option<Offset<OddCol>> {
+        self.hover
+    }
+
+    pub fn get_scroll(&self, x: f32, y: f32) -> scroll::Delta {
+        self.scroll_border.eval(x, y)
+    }
+
     pub fn view(&self) -> &gridview::State<Offset<OddCol>> {
         &self.view
     }
 
-    /// Apply a command to the game state, updating it appropriately.
-    /// Execution of a command optionally yields another command to
-    /// execute, e.g. to repeat an operation.
-    pub fn apply(&mut self, ctx: &mut Context, world: &mut world::State, cmd: Command) -> GameResult<Option<Command>> {
-        use Command::*;
-        match cmd {
+    /// Apply an input command to the game state, updating it appropriately.
+    /// Processing of one input optionally yields the next input to process,
+    /// e.g. to repeat an operation.
+    pub fn apply(
+        &mut self,
+        ctx: &mut Context,
+        world: &mut world::State,
+        input: Input
+    ) -> GameResult<Option<Input>> {
+        use Input::*;
+        match input {
             ResizeView(width, height) => {
                 self.view.resize(width as u32 - 302, height as u32 - 202);
                 let screen = graphics::Rect::new(0., 0., width, height);
@@ -141,7 +157,7 @@ impl State {
             HoverHexagon(coords) => {
                 self.hover = coords;
                 if let Some(c) = coords {
-                    let entity = world.entities.get(&c);
+                    let entity = world.entity(c);
                     self.info = Some(Info::new(c, entity));
                     if let Some(ref mut s) = self.selected {
                         if let Some(ref mut r) = s.range {
@@ -165,13 +181,16 @@ impl State {
                     .and_then(|p| p.back())
                     .map_or(false, |n| Some(n.coords) == coords)
                 {
-                    // Selected the target hexagon of the currently selected
+                    // Selected the target hexagon of the currently active
                     // movement path, thus execute the move.
                     self.begin_move(world)?;
                 } else {
                     match coords {
                         Some(c) => self.select(ctx, c, world),
-                        None => self.panel = ControlPanel::main(ctx)
+                        None => {
+                            self.selected = None;
+                            self.panel = ControlPanel::main(ctx)
+                        }
                     };
                 }
                 self.assets.sounds.select.play()?;
@@ -187,18 +206,16 @@ impl State {
                     },
                     Button::NewAsteroid(size) => {
                         if let Some(s) = &self.selected {
-                            if !world.entities.contains_key(&s.coords) {
-                                world.entities.insert(s.coords, Entity::Asteroid(size));
+                            if world.entity(s.coords).is_none() {
+                                world.new_asteroid(s.coords, size);
                             }
                         }
                     },
                     Button::IncreaseCost => for s in &self.selected {
-                        let v = world.costs.entry(s.coords).or_insert(1);
-                        *v = usize::min(100, *v + 1);
+                        world.increase_cost(s.coords);
                     },
                     Button::DecreaseCost => for s in &self.selected {
-                        let v = world.costs.entry(s.coords).or_insert(1);
-                        *v = usize::max(1, *v - 1);
+                        world.decrease_cost(s.coords);
                     },
                     Button::ToggleGrid => {
                         self.settings.show_grid = !self.settings.show_grid;
@@ -210,7 +227,7 @@ impl State {
                         self.settings.show_cost = !self.settings.show_cost;
                     }
                     Button::EndTurn => {
-                        self.end_turn(world)?;
+                        self.end_turn(ctx, world)?;
                     }
                 }
                 self.assets.sounds.button.play()?;
@@ -218,15 +235,38 @@ impl State {
             }
 
             EndTurn() => {
-                self.end_turn(world)?;
+                self.end_turn(ctx, world)?;
                 Ok(None)
             }
         }
     }
 
+    pub fn update(&mut self,
+        ctx: &mut Context,
+        world: &mut world::State
+    ) -> bool {
+        let view_updated = self.view.update(); // TODO: Remove
+        // Progress movement(s)
+        if let Some(mv) = &mut self.movement {
+            if let Some(pos) = mv.pixel_path.next() {
+                mv.pixel_pos = pos;
+            }
+            else if let Some(mv) = self.movement.take() {
+                // Movement is complete.
+                self.end_move(ctx, world, mv);
+            }
+            true
+        } else {
+            view_updated
+        }
+    }
+
     /// If the shipyard is selected that has sufficient capacity and
     /// there is a free neighbouring hexagon, place a new ship.
-    fn new_ship(&mut self, world: &mut world::State, class: ShipClass) -> Option<Offset<OddCol>> {
+    fn new_ship(&mut self,
+        world: &mut world::State,
+        class: world::ShipClass
+    ) -> Option<Offset<OddCol>> {
         if let Some(s) = &self.selected {
             if let Some(free) = hexworld::grid::Cube::from(s.coords)
                 .neighbours()
@@ -244,11 +284,16 @@ impl State {
         return None
     }
 
-    fn selected(&self, coords: Offset<OddCol>, hexagon: Hexagon, entity: Option<&Entity>, world: &world::State) -> Selected {
+    fn selected(&self,
+        coords: Offset<OddCol>,
+        hexagon: Hexagon,
+        entity: Option<&world::Entity>,
+        world: &world::State
+    ) -> Selected {
         match entity {
             None => Selected { coords, hexagon, range: None },
             Some(entity) => {
-                let mut mvc = MovementContext {
+                let mut mvc = world::MovementContext {
                     world,
                     entity,
                     grid: self.view.grid(),
@@ -263,31 +308,14 @@ impl State {
         }
     }
 
-    pub fn select(&mut self, ctx: &mut Context, coords: Offset<OddCol>, world: &world::State) {
+    fn select(&mut self, ctx: &mut Context, coords: Offset<OddCol>, world: &world::State) {
         let entity = world.entity(coords);
         self.selected = self.view.grid().get(coords).map(|h|
             self.selected(coords, h.clone(), entity, world));
         self.panel = ControlPanel::hexagon(ctx, coords, entity);
     }
 
-    pub fn update(&mut self, ctx: &mut Context, world: &mut world::State) -> bool {
-        let view_updated = self.view.update(); // TODO: Remove
-        // Progress movement(s)
-        if let Some(mv) = &mut self.movement {
-            if let Some(pos) = mv.pixel_path.next() {
-                mv.pixel_pos = pos;
-            }
-            else if let Some(mv) = self.movement.take() {
-                // Movement is complete.
-                self.end_move(ctx, world, mv);
-            }
-            true
-        } else {
-            view_updated
-        }
-    }
-
-    pub fn begin_move(&mut self, world: &mut world::State) -> GameResult<()> {
+    fn begin_move(&mut self, world: &mut world::State) -> GameResult<()> {
         // Cut short / complete any previous movement.
         if let Some(prev) = self.movement.take() {
             world.end_move(prev.inner);
@@ -296,7 +324,7 @@ impl State {
         let path = self.selected.take()
             .and_then(|s| s.range
             .and_then(|r| r.path
-        )).unwrap_or(VecDeque::new());
+        )).unwrap_or(search::Path::empty());
         // Setup the new movement.
         for world_move in world.begin_move(path) {
             let mv = Movement::new(world_move, self.view.grid());
@@ -322,10 +350,16 @@ impl State {
         });
     }
 
-    pub fn end_turn(&mut self, world: &mut world::State) -> GameResult<()> {
+    fn end_turn(&mut self, ctx: &mut Context, world: &mut world::State) -> GameResult<()> {
         world.end_turn();
-        // TODO: Refresh control panel
-        self.turn = graphics::Text::new(format!("Turn {}", world.turn));
+        self.panel = match &self.selected {
+            None => ControlPanel::main(ctx),
+            Some(s) => {
+                let entity = s.range.as_ref().and_then(|_| world.entity(s.coords));
+                ControlPanel::hexagon(ctx, s.coords, entity)
+            }
+        };
+        self.turn = graphics::Text::new(format!("Turn {}", world.turn()));
         Ok(())
     }
 
@@ -338,7 +372,7 @@ impl State {
         for (coords, hex) in self.view.iter_viewport() {
             // Hexagon
             if self.settings.show_grid {
-                mesh.polygon(DrawMode::Line(1.), hex.corners(), GREY)?;
+                mesh.polygon(DrawMode::stroke(1.), hex.corners(), GREY)?;
             }
             // Coordinates label
             if self.settings.show_coords {
@@ -348,7 +382,7 @@ impl State {
             }
             // Cost label
             if self.settings.show_cost {
-                let cost = *world.costs.get(coords).unwrap_or(&1);
+                let cost = world.cost(*coords).unwrap_or(1);
                 hexworld_ggez::text::queue_label(
                     ctx, schema, &hex, cost.to_string(),
                     VAlign::Middle, WHITE, Scale::uniform(graphics::DEFAULT_FONT_SCALE));
@@ -357,13 +391,13 @@ impl State {
 
         // Selection
         if let Some(ref s) = self.selected {
-            mesh.polygon(DrawMode::Line(3.), s.hexagon.corners(), RED)?;
+            mesh.polygon(DrawMode::stroke(3.), s.hexagon.corners(), RED)?;
             if let Some(ref r) = s.range {
                 let coords = r.tree.iter().map(|(&c,_)| c).filter(|c| *c != s.coords);
-                mesh::hexagons(&self.view, mesh, coords, DrawMode::Fill, GREY)?;
+                mesh::hexagons(&self.view, mesh, coords, DrawMode::fill(), GREY)?;
                 r.path.as_ref().map_or(Ok(()), |p| {
                     let path = p.iter().skip(1).map(|n| n.coords);
-                    mesh::hexagons(&self.view, mesh, path, DrawMode::Line(3.), BLUE)
+                    mesh::hexagons(&self.view, mesh, path, DrawMode::stroke(3.), BLUE)
                 })?;
             }
         };
@@ -373,7 +407,7 @@ impl State {
         graphics::draw_queued_text(ctx, grid_dp)?;
 
         // Entities
-        for (pos, entity) in &world.entities {
+        for (pos, entity) in world.iter() {
             let img = entity.image(&mut self.assets.images);
             for hex in self.view.grid().get(*pos) {
                 image::draw_into(ctx, &img, hex, schema, grid_dest)?;
@@ -392,10 +426,10 @@ impl State {
         let mesh = &mut MeshBuilder::new();
         let size = graphics::drawable_size(ctx);
         let (width, height) = (size.0 as f32, size.1 as f32);
-        mesh.rectangle(DrawMode::Fill, Rect::new(0.,0.,200.,height), BLACK);
-        mesh.rectangle(DrawMode::Fill, Rect::new(0.,0.,width,100.), BLACK);
-        mesh.rectangle(DrawMode::Fill, Rect::new(0.,height - 100.,width ,100.), BLACK);
-        mesh.rectangle(DrawMode::Fill, Rect::new(width - 100.,0.,100.,height), BLACK);
+        mesh.rectangle(DrawMode::fill(), Rect::new(0.,0.,200.,height), BLACK);
+        mesh.rectangle(DrawMode::fill(), Rect::new(0.,0.,width,100.), BLACK);
+        mesh.rectangle(DrawMode::fill(), Rect::new(0.,height - 100.,width ,100.), BLACK);
+        mesh.rectangle(DrawMode::fill(), Rect::new(width - 100.,0.,100.,height), BLACK);
         let hud = mesh.build(ctx)?;
         graphics::draw(ctx, &hud, DrawParam::default())?;
 
@@ -411,7 +445,7 @@ impl State {
         let dest = Point2::new(width / 2. - turn_width as f32 / 2., 50.);
         self.turn.draw(ctx, DrawParam::default().dest(dest))?;
 
-        // Menu (part of HUD)
+        // Control panel (part of HUD)
         self.panel.draw(ctx)?;
 
         Ok(())
@@ -438,6 +472,11 @@ impl Movement {
     }
 }
 
+pub struct MovementRange {
+    tree: search::Tree<Offset<OddCol>>,
+    path: Option<search::Path<Offset<OddCol>>>,
+}
+
 pub struct Settings {
     pub show_grid: bool,
     pub show_coords: bool,
@@ -454,13 +493,13 @@ impl Default for Settings {
     }
 }
 
-pub struct ControlPanel {
+struct ControlPanel {
     pub info: Option<graphics::Text>,
     pub menu: Menu<Button>,
 }
 
 impl ControlPanel {
-    pub fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
+    fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         if let Some(info) = &self.info {
             let info_w = info.width(ctx) as f32;
             let dest = Point2::new((200. - info_w) / 2., 100.);
@@ -469,7 +508,7 @@ impl ControlPanel {
         self.menu.draw(ctx)
     }
 
-    pub fn main(_ctx: &mut Context) -> ControlPanel {
+    fn main(_ctx: &mut Context) -> ControlPanel {
         let mut menu = Menu::new(Point2::new(25., 100.), 150., 30.);
         menu.add(Button::ToggleGrid, "Toggle Grid");
         menu.add(Button::ToggleCoords, "Toggle Coordinates");
@@ -478,21 +517,25 @@ impl ControlPanel {
         ControlPanel { info: None, menu }
     }
 
-    pub fn hexagon(ctx: &mut Context, coords: Offset<OddCol>, entity: Option<&Entity>) -> ControlPanel {
+    fn hexagon(
+        ctx: &mut Context,
+        coords: Offset<OddCol>,
+        entity: Option<&world::Entity>
+    ) -> ControlPanel {
         // Info
         let title = entity.map_or(Cow::Borrowed("Empty Space"), |e| e.name());
         let mut text = graphics::Text::new(format!("{} - {}", coords, title));
         match entity {
             None => {}
-            Some(Entity::Ship(ship)) => {
+            Some(world::Entity::Ship(ship)) => {
                 text.add(format!("\nRange: {}/{}",
                     ship.range,
                     ship.class.spec().range));
             }
-            Some(Entity::Shipyard(yard)) => {
+            Some(world::Entity::Shipyard(yard)) => {
                 text.add(format!("\nCapacity: {}\n(+1 per turn)", yard.capacity));
             }
-            Some(Entity::Asteroid(size)) => {
+            Some(world::Entity::Asteroid(size)) => {
                 text.add(format!("\nSize: {:?}", size));
             }
         }
@@ -506,19 +549,19 @@ impl ControlPanel {
             None => {
                 menu.add(Button::IncreaseCost, "Increase Cost");
                 menu.add(Button::DecreaseCost, "Decrease Cost");
-                menu.add(Button::NewAsteroid(Asteroid::Small), "Small Asteroid");
-                menu.add(Button::NewAsteroid(Asteroid::Large), "Large Asteroid");
+                menu.add(Button::NewAsteroid(world::Asteroid::Small), "Small Asteroid");
+                menu.add(Button::NewAsteroid(world::Asteroid::Large), "Large Asteroid");
             }
-            Some(Entity::Ship(_)) => {}
-            Some(Entity::Shipyard(_)) => {
-                for class in ShipClass::iter() {
+            Some(world::Entity::Ship(_)) => {}
+            Some(world::Entity::Shipyard(_)) => {
+                for class in world::ShipClass::iter() {
                     menu.add(Button::NewShip(class),
                         &format!("{} ({}C)",
                             class.name(),
                             class.spec().shipyard_capacity));
                 }
             }
-            Some(Entity::Asteroid(_)) => {}
+            Some(world::Entity::Asteroid(_)) => {}
         }
         ControlPanel { info, menu }
     }
@@ -527,8 +570,8 @@ impl ControlPanel {
 /// Context-sensitive control panel buttons.
 #[derive(Copy, Clone, Debug)]
 pub enum Button {
-    NewShip(ShipClass),
-    NewAsteroid(Asteroid),
+    NewShip(world::ShipClass),
+    NewAsteroid(world::Asteroid),
     IncreaseCost,
     DecreaseCost,
     ToggleGrid,
@@ -538,12 +581,12 @@ pub enum Button {
 }
 
 /// Information about a hexagon.
-pub struct Info {
+struct Info {
     pub text: graphics::Text
 }
 
 impl Info {
-    pub fn new(coords: Offset<OddCol>, entity: Option<&Entity>) -> Info {
+    fn new(coords: Offset<OddCol>, entity: Option<&world::Entity>) -> Info {
         let name = entity.map_or(Cow::Borrowed("Empty Space"), |e| e.name());
         let info = format!("{} - {}", coords, name);
         let text = graphics::Text::new(info);
@@ -557,30 +600,9 @@ impl Info {
     // }
 }
 
-pub struct Selected {
-    pub coords: Offset<OddCol>,
-    pub hexagon: Hexagon,
-    pub range: Option<MovementRange>,
+struct Selected {
+    coords: Offset<OddCol>,
+    hexagon: Hexagon,
+    range: Option<MovementRange>,
 }
 
-// impl Selected {
-//     pub fn new(&self, coords: Offset<OddCol>, hexagon: Hexagon, entity: Option<&Entity>) -> Selected {
-//         match entity {
-//             None => Selected { coords, hexagon, range: None },
-//             Some(entity) => {
-//                 let mut mvc = MovementContext {
-//                     costs: &self.costs,
-//                     grid: self.view.grid(),
-//                     entities: &self.entities,
-//                     range: entity.range(),
-//                 };
-//                 let tree = search::astar::tree(coords, None, &mut mvc);
-//                 Selected {
-//                     coords,
-//                     hexagon,
-//                     range: Some(MovementRange { tree, path: None })
-//                 }
-//             }
-//         }
-//     }
-// }
