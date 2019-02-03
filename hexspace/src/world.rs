@@ -1,19 +1,24 @@
 
 use crate::assets::*;
 
+use hexworld::grid::coords;
 use hexworld::grid::Grid;
-use hexworld::grid::offset::{ Offset, OddCol };
 use hexworld::search;
 
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
+pub type Coords = coords::Offset<coords::OddCol>;
+pub type WorldMap<T> = HashMap<Coords,T>;
+pub type Range = search::Tree<Coords>;
+pub type Path = search::Path<Coords>;
+
 /// The core state of the game world.
 pub struct State {
     turn: usize,
-    entities: HashMap<Offset<OddCol>, Entity>,
-    costs: HashMap<Offset<OddCol>, usize>,
+    entities: WorldMap<Entity>,
+    costs: WorldMap<usize>,
 }
 
 impl State {
@@ -29,8 +34,12 @@ impl State {
         self.turn
     }
 
-    // pub fn begin_move(&mut self, path: search::Path<Offset<OddCol>>) -> Option<Movement>
-    pub fn begin_move(&mut self, path: search::Path<Offset<OddCol>>) -> Option<Movement> {
+    pub fn range(&self, entity: &Entity, at: Coords, grid: &Grid<Coords>) -> Range {
+        let mut mvc = MovementContext { world: self, entity, grid };
+        search::astar::tree(at, None, &mut mvc)
+    }
+
+    pub fn begin_move(&mut self, path: Path) -> Option<Movement> {
         path.front()
             .and_then(|start| path.back()
                 .and_then(|end|
@@ -70,15 +79,15 @@ impl State {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item=(&Offset<OddCol>, &Entity)> {
+    pub fn iter(&self) -> impl Iterator<Item=(&Coords, &Entity)> {
         self.entities.iter()
     }
 
-    pub fn entity(&self, at: Offset<OddCol>) -> Option<&Entity> {
+    pub fn entity(&self, at: Coords) -> Option<&Entity> {
         self.entities.get(&at)
     }
 
-    pub fn cost(&self, at: Offset<OddCol>) -> Option<usize> {
+    pub fn cost(&self, at: Coords) -> Option<usize> {
         self.costs.get(&at).map(|c| *c).or_else(||
             match self.entities.get(&at) {
                 // Other entities are impassable
@@ -88,7 +97,7 @@ impl State {
             })
     }
 
-    pub fn new_ship(&mut self, yard_at: Offset<OddCol>, ship_at: Offset<OddCol>, class: ShipClass) -> Option<&Entity> {
+    pub fn new_ship(&mut self, yard_at: Coords, ship_at: Coords, class: ShipClass) -> Option<&Entity> {
         self.entities.get_mut(&yard_at)
             .and_then(|e|
                 if let Entity::Shipyard(yard) = e {
@@ -108,20 +117,20 @@ impl State {
             })
     }
 
-    pub fn new_asteroid(&mut self, at: Offset<OddCol>, size: Asteroid) {
+    pub fn new_asteroid(&mut self, at: Coords, size: Asteroid) {
         self.entities.insert(at, Entity::Asteroid(size));
     }
 
-    pub fn new_shipyard(&mut self, at: Offset<OddCol>, yard: Shipyard) {
+    pub fn new_shipyard(&mut self, at: Coords, yard: Shipyard) {
         self.entities.insert(at, Entity::Shipyard(yard));
     }
 
-    pub fn increase_cost(&mut self, at: Offset<OddCol>) {
+    pub fn increase_cost(&mut self, at: Coords) {
         let v = self.costs.entry(at).or_insert(1);
         *v = usize::min(100, *v + 1);
     }
 
-    pub fn decrease_cost(&mut self, at: Offset<OddCol>) {
+    pub fn decrease_cost(&mut self, at: Coords) {
         let v = self.costs.entry(at).or_insert(1);
         *v = usize::max(1, *v - 1);
     }
@@ -145,23 +154,23 @@ impl State {
 
 pub struct Movement {
     pub entity: Entity,
-    pub start: Offset<OddCol>,
-    pub goal: Offset<OddCol>,
+    pub start: Coords,
+    pub goal: Coords,
     pub cost: usize,
-    pub path: Vec<search::Node<Offset<OddCol>>>,
+    pub path: Vec<search::Node<Coords>>,
 }
 
-pub struct MovementContext<'a> {
-    pub grid: &'a Grid<Offset<OddCol>>,
+struct MovementContext<'a> {
+    pub grid: &'a Grid<Coords>,
     pub world: &'a State,
     pub entity: &'a Entity,
 }
 
-impl<'a> search::Context<Offset<OddCol>> for MovementContext<'a> {
+impl<'a> search::Context<Coords> for MovementContext<'a> {
     fn max_cost(&self) -> usize {
         self.entity.range() as usize
     }
-    fn cost(&mut self, _from: Offset<OddCol>, to: Offset<OddCol>) -> Option<usize> {
+    fn cost(&mut self, _from: Coords, to: Coords) -> Option<usize> {
         self.grid.get(to).and_then(|_| self.world.cost(to))
     }
 }

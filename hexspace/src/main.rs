@@ -1,6 +1,5 @@
 
 mod assets;
-mod menu;
 mod ui;
 mod world;
 

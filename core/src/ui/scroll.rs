@@ -9,6 +9,7 @@ pub struct Border {
     pub bounds: Bounds,
 }
 
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub struct Delta {
     pub dx: f32,
     pub dy: f32,

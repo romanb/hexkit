@@ -1,15 +1,10 @@
 
 use crate::assets::*;
-use crate::menu::*;
 use crate::world;
 
-use ggez::{ Context, GameResult };
-use ggez::graphics;
-use ggez::graphics::*;
 use hexworld::geo::*;
 use hexworld::grid::coords;
 use hexworld::grid::Grid;
-use hexworld::grid::offset::{ Offset, OddCol };
 use hexworld::grid::shape;
 use hexworld::ui::gridview;
 use hexworld::ui::scroll;
@@ -17,6 +12,11 @@ use hexworld::search;
 use hexworld_ggez::animation;
 use hexworld_ggez::image;
 use hexworld_ggez::mesh;
+use hexworld_ggez::menu::Menu;
+
+use ggez::{ Context, GameResult };
+use ggez::graphics;
+use ggez::graphics::*;
 use nalgebra::{ Point2, Vector2 };
 
 use std::borrow::Cow;
@@ -28,9 +28,6 @@ pub const GREY: graphics::Color = graphics::Color { r: 0.5, g: 0.5, b: 0.5, a: 0
 pub const UPDATES_PER_SEC: u16 = 60;
     const MOVE_HEX_SECS:   f32 = 0.15;
 
-// TODO: type Offset = coords::Offset<coords::OddCol>;
-// TODO: type OffsetMap<T> = HashMap<Offset,T>;
-
 /// The input commands that drive the UI and game state.
 pub enum Input {
     /// Scroll the grid view.
@@ -39,10 +36,10 @@ pub enum Input {
     ResizeView(f32, f32),
     /// Hover over the specified grid coordinates, or a part of the grid
     /// that does not correspond to any valid coordinates.
-    HoverHexagon(Option<Offset<OddCol>>),
+    HoverHexagon(Option<world::Coords>),
     /// Select the specified grid coordinates, or a part of the grid
     /// that does not correspond to any valid coordinates.
-    SelectHexagon(Option<Offset<OddCol>>),
+    SelectHexagon(Option<world::Coords>),
     /// Select a button from the control panel.
     SelectButton(Button),
     /// End the current turn.
@@ -52,9 +49,9 @@ pub enum Input {
 /// The UI game state through which the user interacts with
 /// the core game state.
 pub struct State {
-    view: gridview::State<Offset<OddCol>>,
+    view: gridview::State<world::Coords>,
     scroll_border: scroll::Border,
-    hover: Option<Offset<OddCol>>,
+    hover: Option<world::Coords>,
     selected: Option<Selected>,
     info: Option<Info>,
     turn: graphics::Text,
@@ -107,7 +104,7 @@ impl State {
         &self.panel.menu
     }
 
-    pub fn hover(&self) -> Option<Offset<OddCol>> {
+    pub fn hover(&self) -> Option<world::Coords> {
         self.hover
     }
 
@@ -115,11 +112,11 @@ impl State {
         self.scroll_border.eval(x, y)
     }
 
-    pub fn view(&self) -> &gridview::State<Offset<OddCol>> {
+    pub fn view(&self) -> &gridview::State<world::Coords> {
         &self.view
     }
 
-    /// Apply an input command to the game state, updating it appropriately.
+    /// Apply an input command, updating the UI and world state appropriately.
     /// Processing of one input optionally yields the next input to process,
     /// e.g. to repeat an operation.
     pub fn apply(
@@ -146,8 +143,7 @@ impl State {
             }
 
             ScrollView(delta, repeat) => {
-                self.view.scroll_x(delta.dx);
-                self.view.scroll_y(delta.dy);
+                self.view.scroll(delta);
                 if repeat {
                     Ok(Some(ScrollView(delta, repeat)))
                 } else {
@@ -163,7 +159,7 @@ impl State {
                     if let Some(ref mut s) = self.selected {
                         if let Some(ref mut r) = s.range {
                             if entity.is_none() {
-                                r.path = r.tree.path(c);
+                                r.path = r.range.path(c);
                             } else {
                                 r.path = None;
                             }
@@ -242,11 +238,13 @@ impl State {
         }
     }
 
+    /// Perform a single-step update for the physics of the view, e.g.
+    /// any running animations. If the update resulted in changes to
+    /// the UI that need to be drawn, `true` is returned.
     pub fn update(&mut self,
         ctx: &mut Context,
         world: &mut world::State
     ) -> bool {
-        let view_updated = self.view.update(); // TODO: Remove
         // Progress movement(s)
         if let Some(mv) = &mut self.movement {
             if let Some(pos) = mv.pixel_path.next() {
@@ -258,110 +256,12 @@ impl State {
             }
             true
         } else {
-            view_updated
+            false
         }
     }
 
-    /// If the shipyard is selected that has sufficient capacity and
-    /// there is a free neighbouring hexagon, place a new ship.
-    fn new_ship(&mut self,
-        world: &mut world::State,
-        class: world::ShipClass
-    ) -> Option<Offset<OddCol>> {
-        if let Some(s) = &self.selected {
-            if let Some(free) = coords::neighbours(s.coords)
-                .find_map(|n|
-                    Some(n).filter(|o|
-                        self.view.grid().get(*o).is_some() &&
-                        world.entity(*o).is_none()))
-            {
-                if world.new_ship(s.coords, free, class).is_some() {
-                    return Some(free)
-                }
-            }
-        }
-        return None
-    }
-
-    fn selected(&self,
-        coords: Offset<OddCol>,
-        hexagon: Hexagon,
-        entity: Option<&world::Entity>,
-        world: &world::State
-    ) -> Selected {
-        match entity {
-            None => Selected { coords, hexagon, range: None },
-            Some(entity) => {
-                let mut mvc = world::MovementContext {
-                    world,
-                    entity,
-                    grid: self.view.grid(),
-                };
-                let tree = search::astar::tree(coords, None, &mut mvc);
-                Selected {
-                    coords,
-                    hexagon,
-                    range: Some(MovementRange { tree, path: None })
-                }
-            }
-        }
-    }
-
-    fn select(&mut self, ctx: &mut Context, coords: Offset<OddCol>, world: &world::State) {
-        let entity = world.entity(coords);
-        self.selected = self.view.grid().get(coords).map(|h|
-            self.selected(coords, h.clone(), entity, world));
-        self.panel = ControlPanel::hexagon(ctx, coords, entity);
-    }
-
-    fn begin_move(&mut self, world: &mut world::State) -> GameResult<()> {
-        // Cut short / complete any previous movement.
-        if let Some(prev) = self.movement.take() {
-            world.end_move(prev.inner);
-        }
-        // Take the currently selected movement path.
-        let path = self.selected.take()
-            .and_then(|s| s.range
-            .and_then(|r| r.path
-        )).unwrap_or(search::Path::empty());
-        // Setup the new movement.
-        for world_move in world.begin_move(path) {
-            let mv = Movement::new(world_move, self.view.grid());
-            for sound in mv.inner.entity.sound(&mut self.assets.sounds) {
-                sound.play()?;
-                sound.set_volume(0.25);
-            }
-            self.movement = Some(mv);
-        }
-        Ok(())
-    }
-
-    fn end_move(&mut self, ctx: &mut Context, world: &mut world::State, mv: Movement) {
-        let goal = mv.inner.goal;
-        world.end_move(mv.inner);
-        let entity = world.entity(goal);
-        // If nothing else has been selected meanwhile, select the
-        // ship again to continue movement.
-        self.selected = self.selected.take().or_else(|| {
-            self.panel = ControlPanel::hexagon(ctx, goal, entity);
-            self.view.grid().get(goal).map(|h|
-                self.selected(goal, h.clone(), entity, world))
-        });
-    }
-
-    fn end_turn(&mut self, ctx: &mut Context, world: &mut world::State) -> GameResult<()> {
-        world.end_turn();
-        self.panel = match &self.selected {
-            None => ControlPanel::main(ctx),
-            Some(s) => {
-                let entity = s.range.as_ref().and_then(|_| world.entity(s.coords));
-                ControlPanel::hexagon(ctx, s.coords, entity)
-            }
-        };
-        self.turn = graphics::Text::new(format!("Turn {}", world.turn()));
-        Ok(())
-    }
-
+    /// Draw the current state of the UI in the context of the
+    /// the given world state.
     pub fn draw(&mut self, ctx: &mut Context, world: &world::State) -> GameResult<()> {
         // The base grid
         let mesh = &mut MeshBuilder::new();
@@ -392,7 +292,7 @@ impl State {
         if let Some(ref s) = self.selected {
             mesh.polygon(DrawMode::stroke(3.), s.hexagon.corners(), RED)?;
             if let Some(ref r) = s.range {
-                let coords = r.tree.iter().map(|(&c,_)| c).filter(|c| *c != s.coords);
+                let coords = r.range.iter().map(|(&c,_)| c).filter(|c| *c != s.coords);
                 mesh::hexagons(&self.view, mesh, coords, DrawMode::fill(), GREY)?;
                 r.path.as_ref().map_or(Ok(()), |p| {
                     let path = p.iter().skip(1).map(|n| n.coords);
@@ -449,6 +349,101 @@ impl State {
 
         Ok(())
     }
+
+    /// If the shipyard is selected that has sufficient capacity and
+    /// there is a free neighbouring hexagon, place a new ship.
+    fn new_ship(&mut self,
+        world: &mut world::State,
+        class: world::ShipClass
+    ) -> Option<world::Coords> {
+        if let Some(s) = &self.selected {
+            if let Some(free) = coords::neighbours(s.coords)
+                .find_map(|n|
+                    Some(n).filter(|o|
+                        self.view.grid().get(*o).is_some() &&
+                        world.entity(*o).is_none()))
+            {
+                if world.new_ship(s.coords, free, class).is_some() {
+                    return Some(free)
+                }
+            }
+        }
+        return None
+    }
+
+    fn selected(&self,
+        coords: world::Coords,
+        hexagon: Hexagon,
+        entity: Option<&world::Entity>,
+        world: &world::State
+    ) -> Selected {
+        match entity {
+            None => Selected { coords, hexagon, range: None },
+            Some(entity) => {
+                let range = world.range(entity, coords, self.view.grid());
+                Selected {
+                    coords,
+                    hexagon,
+                    range: Some(MovementRange { range, path: None })
+                }
+            }
+        }
+    }
+
+    fn select(&mut self, ctx: &mut Context, coords: world::Coords, world: &world::State) {
+        let entity = world.entity(coords);
+        self.selected = self.view.grid().get(coords).map(|h|
+            self.selected(coords, h.clone(), entity, world));
+        self.panel = ControlPanel::hexagon(ctx, coords, entity);
+    }
+
+    fn begin_move(&mut self, world: &mut world::State) -> GameResult<()> {
+        // Cut short / complete any previous movement.
+        if let Some(prev) = self.movement.take() {
+            world.end_move(prev.inner);
+        }
+        // Take the currently selected movement path.
+        let path = self.selected.take()
+            .and_then(|s| s.range
+            .and_then(|r| r.path
+        )).unwrap_or(search::Path::empty());
+        // Setup the new movement.
+        for world_move in world.begin_move(path) {
+            let mv = Movement::new(world_move, self.view.grid());
+            for sound in mv.inner.entity.sound(&mut self.assets.sounds) {
+                sound.play()?;
+                sound.set_volume(0.25);
+            }
+            self.movement = Some(mv);
+        }
+        Ok(())
+    }
+
+    fn end_move(&mut self, ctx: &mut Context, world: &mut world::State, mv: Movement) {
+        let goal = mv.inner.goal;
+        world.end_move(mv.inner);
+        let entity = world.entity(goal);
+        // If nothing else has been selected meanwhile, select the
+        // ship again to continue movement.
+        self.selected = self.selected.take().or_else(|| {
+            self.panel = ControlPanel::hexagon(ctx, goal, entity);
+            self.view.grid().get(goal).map(|h|
+                self.selected(goal, h.clone(), entity, world))
+        });
+    }
+
+    fn end_turn(&mut self, ctx: &mut Context, world: &mut world::State) -> GameResult<()> {
+        world.end_turn();
+        self.panel = match &self.selected {
+            None => ControlPanel::main(ctx),
+            Some(s) => {
+                let entity = s.range.as_ref().and_then(|_| world.entity(s.coords));
+                ControlPanel::hexagon(ctx, s.coords, entity)
+            }
+        };
+        self.turn = graphics::Text::new(format!("Turn {}", world.turn()));
+        Ok(())
+    }
 }
 
 pub struct Movement {
@@ -460,7 +455,7 @@ pub struct Movement {
 impl Movement {
     pub fn new(
         mv: world::Movement,
-        grid: &Grid<Offset<OddCol>>
+        grid: &Grid<world::Coords>
     ) -> Movement {
         let pixel_path = animation::path(UPDATES_PER_SEC, MOVE_HEX_SECS, grid, &mv.path);
         Movement {
@@ -472,8 +467,8 @@ impl Movement {
 }
 
 pub struct MovementRange {
-    tree: search::Tree<Offset<OddCol>>,
-    path: Option<search::Path<Offset<OddCol>>>,
+    range: world::Range,
+    path: Option<world::Path>,
 }
 
 pub struct Settings {
@@ -518,7 +513,7 @@ impl ControlPanel {
 
     fn hexagon(
         ctx: &mut Context,
-        coords: Offset<OddCol>,
+        coords: world::Coords,
         entity: Option<&world::Entity>
     ) -> ControlPanel {
         // Info
@@ -585,7 +580,7 @@ struct Info {
 }
 
 impl Info {
-    fn new(coords: Offset<OddCol>, entity: Option<&world::Entity>) -> Info {
+    fn new(coords: world::Coords, entity: Option<&world::Entity>) -> Info {
         let name = entity.map_or(Cow::Borrowed("Empty Space"), |e| e.name());
         let info = format!("{} - {}", coords, name);
         let text = graphics::Text::new(info);
@@ -600,7 +595,7 @@ impl Info {
 }
 
 struct Selected {
-    coords: Offset<OddCol>,
+    coords: world::Coords,
     hexagon: Hexagon,
     range: Option<MovementRange>,
 }

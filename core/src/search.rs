@@ -2,8 +2,7 @@
 pub mod astar;
 pub mod bfs;
 
-use crate::grid::Coords;
-use crate::grid::coords;
+use crate::grid::coords::{ self, Coords };
 
 use std::collections::HashMap;
 use std::collections::VecDeque;

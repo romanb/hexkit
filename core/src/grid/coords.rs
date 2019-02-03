@@ -1,11 +1,9 @@
 
-// TODO: Combine axial, cube and offset modules
-
 pub mod cube;
 pub mod axial;
 pub mod offset;
 
-pub use self::cube::*;
+pub use cube::*;
 pub use axial::*;
 pub use offset::*;
 
@@ -17,22 +15,30 @@ use std::fmt::{ Debug, Display };
 use std::hash::Hash;
 
 pub trait Coords:
-    From<Cube> + Into<Cube> + Eq + Copy + Debug + Display + Hash {
+    From<Cube> + Into<Cube> + Eq + Copy + Debug + Display + Hash
+{}
+
+/// Iterate over the neighbouring (adjacent) coordinates.
+pub fn neighbours<C>(c: C) -> impl Iterator<Item=C>
+where
+    C: Coords
+{
+    CubeVec::directions().map(move |v| C::from(c.into() + v))
 }
 
-/// Iterate over the neighbouring (adjacent) cube coordinates.
-pub fn neighbours<C: Coords, D: Coords>(c: C) -> impl Iterator<Item=D> {
-    CubeVec::directions().map(move |v| D::from(c.into() + v))
+/// Iterate over the neighbouring coordinates along the diagonal axes.
+pub fn diagonal_neighbours<C>(c: C) -> impl Iterator<Item=C>
+where
+    C: Coords
+{
+    CubeVec::diagonals().map(move |v| C::from(c.into() + v))
 }
 
-/// Iterate over the neighbouring cube coordinates along the
-/// diagonal axes.
-pub fn diagonal_neighbours<C: Coords, D: Coords>(c: C) -> impl Iterator<Item=D> {
-    CubeVec::diagonals().map(move |v| D::from(c.into() + v))
-}
-
-/// The distance to another cube coordinate.
-pub fn distance<C: Coords>(from: C, to: C) -> usize {
+/// The (beeline) distance between coordinates.
+pub fn distance<C>(from: C, to: C) -> usize
+where
+    C: Coords
+{
     let a: Cube = from.into();
     let b: Cube = to.into();
     ( (a.p.x - b.p.x).abs() as usize +
@@ -40,9 +46,12 @@ pub fn distance<C: Coords>(from: C, to: C) -> usize {
       (a.p.z - b.p.z).abs() as usize ) / 2
 }
 
-/// The shortest path to another cube coordinate, i.e. along
-/// a straight line, always including the start coordinate.
-pub fn beeline<C: Coords>(from: C, to: C) -> impl ExactSizeIterator<Item=C> {
+/// The shortest path to other coordinates along a straight line,
+/// always including the start coordinates.
+pub fn beeline<C>(from: C, to: C) -> impl ExactSizeIterator<Item=C>
+where
+    C: Coords
+{
     LineIterator {
         distance: distance(from, to),
         start: from,
@@ -58,7 +67,10 @@ pub struct LineIterator<C> {
     end: C,
 }
 
-impl<C: Coords> Iterator for LineIterator<C> {
+impl<C> Iterator for LineIterator<C>
+where
+    C: Coords
+{
     type Item = C;
 
     fn next(&mut self) -> Option<C> {
@@ -80,7 +92,10 @@ impl<C: Coords> Iterator for LineIterator<C> {
 
 impl<C: Coords> ExactSizeIterator for LineIterator<C> {}
 
-pub fn lerp<C: Coords>(from: C, to: C, t: geo::Frac1) -> C {
+pub fn lerp<C>(from: C, to: C, t: geo::Frac1) -> C
+where
+    C: Coords
+{
     let a: Cube = from.into();
     let b: Cube = to.into();
     let x = geo::lerp(a.x(), b.x(), t);
@@ -89,19 +104,22 @@ pub fn lerp<C: Coords>(from: C, to: C, t: geo::Frac1) -> C {
     C::from(Cube::round(x, y, z))
 }
 
-/// The number of cube coordinates that are within the given range.
+/// The number of coordinates that are within the given range.
 pub fn num_in_range(r: u16) -> usize {
     num_in_ring(r) * (r as usize + 1) / 2 + 1
 }
 
-/// The number of cube coordinates that are in the ring of
-/// a given radius.
+/// The number of coordinates that are in a ring of a given radius.
 pub fn num_in_ring(r: u16) -> usize {
     6 * (r as usize)
 }
 
-/// The cube coordinates that are within the given range.
-pub fn range<C: Coords>(c: C, r: u16) -> impl Iterator<Item=C> + Clone {
+/// The coordinates that are within the specified range of the given
+/// coordinates.
+pub fn range<C>(c: C, r: u16) -> impl Iterator<Item=C> + Clone
+where
+    C: Coords
+{
     let x_end   = r as i32;
     let x_start = -x_end;
     let center = c.into();
@@ -114,7 +132,10 @@ pub fn range<C: Coords>(c: C, r: u16) -> impl Iterator<Item=C> + Clone {
     })
 }
 
-pub fn range_overlapping<C: Coords>(c1: C, c2: C, r: u16) -> impl Iterator<Item=C> {
+pub fn range_overlapping<C>(c1: C, c2: C, r: u16) -> impl Iterator<Item=C>
+where
+    C: Coords
+{
     let n = r as i32;
     let a: Cube = c1.into();
     let b: Cube = c2.into();
@@ -132,8 +153,11 @@ pub fn range_overlapping<C: Coords>(c1: C, c2: C, r: u16) -> impl Iterator<Item=
 }
 
 /// The cube coordinates that are within the given range and reachable.
-pub fn range_reachable<C: Coords, F>(c: C, r: u16, f: F) -> HashSet<C>
-where F: Fn(C) -> bool {
+pub fn range_reachable<C, F>(c: C, r: u16, f: F) -> HashSet<C>
+where
+    C: Coords,
+    F: Fn(C) -> bool
+{
     let mut reachable = HashSet::new();
     let mut fringe = Vec::new();
     reachable.insert(c);
@@ -158,8 +182,11 @@ where F: Fn(C) -> bool {
 /// whether all coordinates between `self` and `c` (as determined
 /// by `beeline`) satisfy the given predicate. The first blocked
 /// coordinate on a beeline is always considered visible.
-pub fn range_visible<C: Coords, F>(c: C, r: u16, f: F) -> impl Iterator<Item=C>
-where F: Fn(C) -> bool {
+pub fn range_visible<C, F>(c: C, r: u16, f: F) -> impl Iterator<Item=C>
+where
+    C: Coords,
+    F: Fn(C) -> bool
+{
     range(c, r).filter(move |x| {
         let l = beeline(c, *x);
         let n = l.len(); // n > 0
@@ -171,8 +198,11 @@ where F: Fn(C) -> bool {
 /// from `self`, starting at the first coordinate of the ring in
 /// the given direction from `self` and walking along the ring
 /// as per the given `Rotation`.
-pub fn walk_ring<C: Coords, D>(c: C, dir: D, rad: u16, rot: geo::Rotation) -> impl Iterator<Item=C>
-where D: Direction {
+pub fn walk_ring<C, D>(c: C, dir: D, rad: u16, rot: geo::Rotation) -> impl Iterator<Item=C>
+where
+    C: Coords,
+    D: Direction
+{
     let mut dirs = CubeVec::walk_directions(dir, rot);
     let dir1 = dirs.next().unwrap();
     RingIterator {
@@ -192,7 +222,11 @@ pub struct RingIterator<C, I: Iterator<Item=CubeVec>> {
     dir_count: u16,
 }
 
-impl<C: Coords, I: ExactSizeIterator<Item=CubeVec>> Iterator for RingIterator<C,I> {
+impl<C, I> Iterator for RingIterator<C,I>
+where
+    C: Coords,
+    I: ExactSizeIterator<Item=CubeVec>
+{
     type Item = C;
 
     fn next(&mut self) -> Option<C> {
@@ -221,11 +255,17 @@ impl<C: Coords, I: ExactSizeIterator<Item=CubeVec>> Iterator for RingIterator<C,
     }
 }
 
-impl<C: Coords, I: ExactSizeIterator<Item=CubeVec>> ExactSizeIterator
-for RingIterator<C,I> {}
+impl<C, I> ExactSizeIterator for RingIterator<C,I>
+where
+    C: Coords,
+    I: ExactSizeIterator<Item=CubeVec>
+{}
 
-pub fn walk_range<C: Coords, D>(c: C, dir: D, rad: u16, rot: geo::Rotation) -> impl Iterator<Item=C>
-where D: Direction {
+pub fn walk_range<C, D>(c: C, dir: D, rad: u16, rot: geo::Rotation) -> impl Iterator<Item=C>
+where
+    C: Coords,
+    D: Direction
+{
     let rings = (1..rad+1).flat_map(move |i| walk_ring(c, dir, i, rot));
     std::iter::once(c).chain(rings)
 }

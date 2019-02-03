@@ -1,4 +1,6 @@
 
+pub mod menu;
+
 use hexworld::grid::Coords;
 use hexworld::ui::gridview;
 
@@ -72,7 +74,6 @@ pub mod text {
 
 pub mod animation {
     use super::*;
-    // use std::time;
     use std::borrow::Borrow;
     use nalgebra::Point2;
     use hexworld::grid::Grid;
