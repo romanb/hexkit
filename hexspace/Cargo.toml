@@ -8,5 +8,4 @@ edition = "2018"
 hexworld = { path = "../core" }
 hexworld-ggez = { path = "../ggez" }
 ggez = { git = "https://github.com/ggez/ggez" }
-nalgebra = "^0.16"
 

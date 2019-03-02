@@ -7,6 +7,10 @@ use hexworld::ui::gridview;
 use ggez::*;
 use ggez::graphics::*;
 
+use nalgebra::Point2;
+
+// use ::nalgebra::Point2;
+
 pub mod mesh {
     use super::*;
     use std::borrow::Borrow;
@@ -34,7 +38,7 @@ pub mod mesh {
 pub mod image {
     use super::*;
     use hexworld::geo::{ Hexagon, Schema, VAlign };
-    use nalgebra::Point2;
+    // use nalgebra::Point2;
 
     pub fn draw_into(
         ctx: &mut Context,

@@ -5,12 +5,12 @@ authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
 
 [dependencies]
-nalgebra = "^0.16"
-num-rational = "^0.2"
+nalgebra = "^0.17"
+# num-rational = "^0.2"
 num-traits = "^0.2"
 num-derive = "^0.2"
 either = "^1.5"
-alga = "^0.7"
+# alga = "^0.7"
 
 [dev-dependencies]
 # quickcheck = "^0.7"

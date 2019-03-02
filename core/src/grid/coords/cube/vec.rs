@@ -5,6 +5,7 @@ pub use std::ops::{ Add, Sub, Mul, Neg };
 pub use crate::geo::{ Z6, Rotation };
 
 use either::Either;
+use num_derive::FromPrimitive;
 use num_traits::cast::FromPrimitive;
 
 /// Vectors for the displacement to a neighbouring (adjacent) cube coordinate

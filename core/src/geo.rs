@@ -2,6 +2,7 @@
 
 use nalgebra::core::{ Matrix2, Vector2 };
 use nalgebra::geometry::Point2;
+use num_derive::{ FromPrimitive, ToPrimitive };
 use num_traits::cast::{ FromPrimitive, ToPrimitive };
 use num_traits::bounds::Bounded;
 use std::ops::{ Neg, Add, Sub };
@@ -14,6 +15,7 @@ pub const ANGLE_DEGREES: f32 = 60.0;
 /// a hexagon is composed of, i.e. 60 degrees in radians.
 pub const ANGLE_RADIANS: f32 = 1.0471975512;
 
+/// The orientation of a regular hexagon.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Orientation {
     FlatTop,

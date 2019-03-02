@@ -15,9 +15,10 @@ use hexworld_ggez::mesh;
 use hexworld_ggez::menu::Menu;
 
 use ggez::{ Context, GameResult };
+use ggez::audio::SoundSource;
 use ggez::graphics;
 use ggez::graphics::*;
-use nalgebra::{ Point2, Vector2 };
+use ggez::nalgebra::{ Point2, Vector2 };
 
 use std::borrow::Cow;
 
@@ -54,7 +55,7 @@ pub struct State {
     hover: Option<world::Coords>,
     selected: Option<Selected>,
     info: Option<Info>,
-    turn: graphics::Text,
+    turn: TurnTracker,
     panel: ControlPanel,
     settings: Settings,
     movement: Option<Movement>,
@@ -89,7 +90,7 @@ impl State {
         State {
             view,
             scroll_border,
-            turn: graphics::Text::new(format!("Turn {}", turn)),
+            turn: TurnTracker::new(turn),
             selected: None,
             hover: None,
             info: None,
@@ -301,8 +302,9 @@ impl State {
             }
         };
 
-        let grid = mesh.build(ctx)?;
-        graphics::draw(ctx, &grid, grid_dp)?;
+        if let Ok(grid) = mesh.build(ctx) {
+            graphics::draw(ctx, &grid, grid_dp)?;
+        }
         graphics::draw_queued_text(ctx, grid_dp)?;
 
         // Entities
@@ -325,6 +327,7 @@ impl State {
         let mesh = &mut MeshBuilder::new();
         let size = graphics::drawable_size(ctx);
         let (width, height) = (size.0 as f32, size.1 as f32);
+        let bounds = graphics::Rect::new(0., 0., width, height);
         mesh.rectangle(DrawMode::fill(), Rect::new(0.,0.,200.,height), BLACK);
         mesh.rectangle(DrawMode::fill(), Rect::new(0.,0.,width,100.), BLACK);
         mesh.rectangle(DrawMode::fill(), Rect::new(0.,height - 100.,width ,100.), BLACK);
@@ -340,9 +343,10 @@ impl State {
         }
 
         // Turn tracker (part of HUD)
-        let turn_width = self.turn.width(ctx);
-        let dest = Point2::new(width / 2. - turn_width as f32 / 2., 50.);
-        self.turn.draw(ctx, DrawParam::default().dest(dest))?;
+        self.turn.draw(ctx, &bounds)?;
+        // let turn_width = self.turn.width(ctx);
+        // let dest = Point2::new(width / 2. - turn_width as f32 / 2., 50.);
+        // self.turn.draw(ctx, DrawParam::default().dest(dest))?;
 
         // Control panel (part of HUD)
         self.panel.draw(ctx)?;
@@ -441,8 +445,26 @@ impl State {
                 ControlPanel::hexagon(ctx, s.coords, entity)
             }
         };
-        self.turn = graphics::Text::new(format!("Turn {}", world.turn()));
+        self.turn = TurnTracker::new(world.turn());
         Ok(())
+    }
+}
+
+struct TurnTracker {
+    text: graphics::Text
+}
+
+impl TurnTracker {
+    fn new(turn: usize) -> TurnTracker {
+        TurnTracker {
+            text: graphics::Text::new(format!("Turn {}", turn)),
+        }
+    }
+
+    fn draw(&self, ctx: &mut Context, bounds: &graphics::Rect) -> GameResult<()> {
+        let turn_width = self.text.width(ctx);
+        let dest = Point2::new(bounds.w / 2. - turn_width as f32 / 2., 50.);
+        self.text.draw(ctx, DrawParam::default().dest(dest))
     }
 }
 

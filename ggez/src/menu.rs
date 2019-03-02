@@ -1,7 +1,6 @@
 
-use ggez::{ Context, GameResult };
+use ggez::{ Context, GameResult, nalgebra::Point2 };
 use ggez::graphics;
-use nalgebra::Point2;
 
 /// A menu with equally-sized, vertically-stacked menu items.
 pub struct Menu<T> {
@@ -63,13 +62,12 @@ impl<T> Menu<T> {
                 item.bounds.y + (item.bounds.h - text_h) / 2.);
             graphics::queue_text(ctx, &item.text, pos, Some(graphics::WHITE));
         }
-        let menu = mesh.build(ctx)?;
         let param = graphics::DrawParam::default();
-        graphics::draw(ctx, &menu, param)?;
+        if let Ok(menu) = mesh.build(ctx) {
+            graphics::draw(ctx, &menu, param)?;
+        }
         graphics::draw_queued_text(ctx, param)?;
         Ok(())
     }
 }
-
-
 

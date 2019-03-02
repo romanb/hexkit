@@ -10,6 +10,7 @@ use std::time;
 use std::path::Path;
 
 use ggez::{ self, GameResult, GameError, Context, ContextBuilder };
+use ggez::audio::SoundSource;
 use ggez::conf::Conf;
 use ggez::event::{ self, EventHandler };
 use ggez::filesystem;
@@ -17,12 +18,11 @@ use ggez::graphics::{ self };
 use ggez::graphics::{ BLACK };
 use ggez::input::keyboard::{ KeyCode, KeyMods };
 use ggez::input::mouse::MouseButton;
+use ggez::nalgebra::{ Point2 };
 use ggez::timer;
 
 use hexworld::grid::offset::{ Offset };
 use hexworld::ui::scroll;
-
-use nalgebra::{ Point2 };
 
 /// The complete game state.
 struct State {

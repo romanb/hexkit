@@ -6,5 +6,4 @@ edition = "2018"
 
 [dependencies]
 hexworld = { path = "../core" }
-nalgebra = "^0.16"
 ggez = { git = "https://github.com/ggez/ggez" }
