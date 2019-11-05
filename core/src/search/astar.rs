@@ -63,7 +63,6 @@ pub fn tree<C: Coords>(
         if ctx.exit(pc) || goal.map_or(false, |g| g == pc) {
             break
         }
-        // for n in coords::neighbours(c) {
         for child in coords::neighbours(parent.coords) {
             let cc = C::from(child);
             if coords::distance(child, root) > max_distance {

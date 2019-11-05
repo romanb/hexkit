@@ -1,5 +1,4 @@
-//! Iterators over cube coordinates for creating maps with
-//! common shapes.
+//! Iterators over cube coordinates for creating maps with common shapes.
 //!
 //! The `.` in the ASCII-art indicates the origin, i.e. `(0,0,0)`.
 
@@ -326,7 +325,7 @@ pub fn rectangle_yz(dy: i32, dz: i32) -> Shape<impl Iterator<Item=Cube>> {
 /// ```raw
 /// .
 /// |\
-/// | \ 
+/// | \
 /// |  \
 /// |  /
 /// | /

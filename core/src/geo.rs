@@ -24,12 +24,13 @@ pub enum Orientation {
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum Rotation {
-    /// Clockwise roation.
+    /// Clockwise rotation.
     CW,
     /// Counterclockwise rotation.
     CCW
 }
 
+/// The side length of a hexagon.
 #[derive(PartialEq, Copy, Clone, PartialOrd, Debug)]
 pub struct SideLength(pub f32);
 
@@ -47,9 +48,9 @@ pub struct Schema {
     pub(crate) height: f32,
     pub(crate) center_row_offset: f32,
     pub(crate) center_col_offset: f32,
+    pub(crate) orientation: Orientation,
                to_pixel: Matrix2<f32>,
                from_pixel: Matrix2<f32>,
-    pub(crate) orientation: Orientation,
                first_corner_angle: f32,
 }
 

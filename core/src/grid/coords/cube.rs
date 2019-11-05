@@ -19,13 +19,11 @@ use std::fmt;
 /// plane as a hexagonal grid whereby the coordinates of each hexagon can be
 /// identified with the coordinates of the cube it is projected from.
 /// This yields a coordinate system that simplifies many algorithms and
-/// thus serves as the canonical coordinate system for any grid
-/// (see [`Coords`]).
+/// thus serves as the canonical coordinate system for any grid (see [`Coords`]).
 ///
 /// The following illustrates the coordinate system with a flat-top orientation.
-/// For a pointy-top orientation, it is to be rotated 30 degrees
-/// counterclockwise, i.e. such that `+x/-y` and `+y/-x` are horizontally
-/// aligned.
+/// For a pointy-top orientation, it is to be rotated 30 degrees counterclockwise,
+/// i.e. such that `+x/-y` and `+y/-x` are horizontally aligned.
 ///
 /// ```raw
 ///         +y/-z
@@ -42,7 +40,7 @@ use std::fmt;
 /// [`Coords`]: ../trait.Coords.html
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, PartialOrd)]
 pub struct Cube {
-    pub(crate) p: Point3<i32>,
+    pub(super) p: Point3<i32>,
 }
 
 impl Cube {

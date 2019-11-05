@@ -4,8 +4,9 @@ pub mod bfs;
 
 use crate::grid::coords::{ self, Coords };
 
-use std::collections::HashMap;
-use std::collections::VecDeque;
+use std::borrow::Borrow;
+use std::collections::{ HashMap, VecDeque };
+use std::ops::Deref;
 
 /// The context of a search defines the cost and bounds of the search space.
 pub trait Context<C: Coords> {
@@ -45,7 +46,7 @@ impl<C> Node<C> {
     }
 }
 
-impl<C> std::borrow::Borrow<C> for Node<C> {
+impl<C> Borrow<C> for Node<C> {
     fn borrow(&self) -> &C {
         &self.coords
     }
@@ -53,7 +54,7 @@ impl<C> std::borrow::Borrow<C> for Node<C> {
 
 pub struct Path<C>(VecDeque<Node<C>>);
 
-impl<C> std::ops::Deref for Path<C> {
+impl<C> Deref for Path<C> {
     type Target = VecDeque<Node<C>>;
 
     fn deref(&self) -> &Self::Target {
@@ -71,7 +72,8 @@ impl<C> Path<C> {
     }
 }
 
-/// A tree is constructed as the result of a search on a grid.
+/// A `Tree` is constructed as the result of a search on a grid.
+///
 /// The root node of the tree is the start coordinates of the search
 /// and the paths to the leaves are paths on the grid from the start
 /// coordinates to other grid coordinates.

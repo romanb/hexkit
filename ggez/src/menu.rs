@@ -66,7 +66,7 @@ impl<T> Menu<T> {
         if let Ok(menu) = mesh.build(ctx) {
             graphics::draw(ctx, &menu, param)?;
         }
-        graphics::draw_queued_text(ctx, param)?;
+        graphics::draw_queued_text(ctx, param, None, graphics::FilterMode::Linear)?;
         Ok(())
     }
 }

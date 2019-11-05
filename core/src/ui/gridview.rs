@@ -1,4 +1,6 @@
 
+//! TODO
+
 use crate::geo::{ Bounds, Hexagon };
 use crate::grid::{ Grid, Coords };
 use crate::ui::scroll;
@@ -14,6 +16,7 @@ pub struct State<C: Coords> {
 
 impl<C: Coords> State<C> {
 
+    /// TODO
     pub fn new(grid: Grid<C>, bounds: Bounds) -> State<C> {
         State {
             grid,
@@ -50,6 +53,7 @@ impl<C: Coords> State<C> {
         &self.viewport
     }
 
+    /// TODO
     pub fn from_pixel(&self, p: Point2<f32>) -> Option<(C, &Hexagon)> {
         // FIXME: Turn self.position into bounds. self.viewport and
         // self.bounds differ only in position - width and height must
@@ -93,6 +97,7 @@ impl<C: Coords> State<C> {
 
     /// The current position of the grid (i.e. the top-left corner of the
     /// grid's bounding box) on the screen coordinate system.
+    ///
     /// Rendering the grid at this position "pulls" the viewport, which
     /// moves across the grid, into the grid view.
     pub fn grid_position(&self) -> Point2<f32> {

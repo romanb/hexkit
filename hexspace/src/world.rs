@@ -1,4 +1,6 @@
 
+//! The game world.
+
 use crate::assets::*;
 
 use hexworld::grid::coords;
@@ -22,6 +24,7 @@ pub struct State {
 }
 
 impl State {
+    /// Creates a new, empty world state that begins at turn 1.
     pub fn new() -> State {
         State {
             turn: 1,
@@ -88,7 +91,7 @@ impl State {
     }
 
     pub fn cost(&self, at: Coords) -> Option<usize> {
-        self.costs.get(&at).map(|c| *c).or_else(||
+        self.costs.get(&at).cloned().or_else(||
             match self.entities.get(&at) {
                 // Other entities are impassable
                 Some(_) => None,
@@ -170,6 +173,7 @@ impl<'a> search::Context<Coords> for MovementContext<'a> {
     fn max_cost(&self) -> usize {
         self.entity.range() as usize
     }
+
     fn cost(&mut self, _from: Coords, to: Coords) -> Option<usize> {
         self.grid.get(to).and_then(|_| self.world.cost(to))
     }
@@ -181,67 +185,47 @@ pub enum Entity {
     Asteroid(Asteroid),
 }
 
-// pub trait SomeEntity {
-//     fn name(&self) -> Cow<str>;
-//     fn image<'a>(&'a self, images: &'a Images) -> &'a graphics::Image;
-//     fn sound<'a>(&'a self, sounds: &'a mut Sounds) -> &'a mut audio::Source;
-//     fn range(&self) -> u16;
-//     fn reduce_range(&mut self, sub: u16);
-// }
-
 impl Entity {
-    // pub fn as_dyn(&self) -> Box<dyn SomeEntity> {
-    //     Box::new(match self {
-    //         Entity::Shipyard(yard) => yard as &SomeEntity,
-    //         Entity::Ship(ship) => ship as &SomeEntity,
-    //         Entity::Asteroid(ast) => ast as &SomeEntity,
-    //     })
-    // }
 
     pub fn name(&self) -> Cow<str> {
-        use Entity::*;
         match self {
-            Ship(ship)  => Cow::Owned(ship.name()),
-            Shipyard(_) => Cow::Borrowed("Shipyard"),
-            Asteroid(_) => Cow::Borrowed("Asteroid"),
+            Entity::Ship(ship)  => Cow::Owned(ship.name()),
+            Entity::Shipyard(_) => Cow::Borrowed("Shipyard"),
+            Entity::Asteroid(_) => Cow::Borrowed("Asteroid"),
         }
     }
 
     pub fn image<'a>(&'a self, images: &'a Images) -> &'a graphics::Image {
-        use Entity::*;
         match self {
-            Ship(ship)     => ship.class.image(images),
-            Shipyard(_)    => &images.shipyard,
-            Asteroid(size) => match size {
-                self::Asteroid::Small => &images.asteroid_small,
-                self::Asteroid::Large => &images.asteroid_large,
+            Entity::Ship(ship)     => ship.class.image(images),
+            Entity::Shipyard(_)    => &images.shipyard,
+            Entity::Asteroid(size) => match size {
+                Asteroid::Small => &images.asteroid_small,
+                Asteroid::Large => &images.asteroid_large,
             }
         }
     }
 
     pub fn range(&self) -> u16 {
-        use Entity::*;
         match self {
-            Ship(ship)  => ship.range,
-            Shipyard(_) => 0,
-            Asteroid(_) => 0,
+            Entity::Ship(ship)  => ship.range,
+            Entity::Shipyard(_) => 0,
+            Entity::Asteroid(_) => 0,
         }
     }
 
     pub fn reduce_range(&mut self, sub: u16) {
-        use Entity::*;
         match self {
-            Ship(ship)  => ship.range -= sub,
-            Shipyard(_) => {}
-            Asteroid(_) => {}
+            Entity::Ship(ship)  => ship.range -= sub,
+            Entity::Shipyard(_) => {}
+            Entity::Asteroid(_) => {}
         }
     }
 
     pub fn sound<'a>(&'a self, sounds: &'a mut Sounds) -> Option<&'a mut audio::Source> {
-        use Entity::*;
         match self {
-            Ship(ship) => Some(ship.class.sound(sounds)),
-            _          => None,
+            Entity::Ship(ship) => Some(ship.class.sound(sounds)),
+            _                  => None,
         }
     }
 }
@@ -270,12 +254,6 @@ impl Shipyard {
         }
     }
 }
-
-// impl Entity for Shipyard {
-//     fn name(&self) -> &str {
-//         "Shipyard"
-//     }
-// }
 
 pub type ShipId = u16;
 
@@ -370,20 +348,9 @@ impl Ship {
     }
 }
 
-// impl Entity for Ship {
-//     fn name(&self) -> &str {
-//         self.class.name()
-//     }
-// }
-
 #[derive(Copy, Clone, Debug)]
 pub enum Asteroid {
     Small,
     Large
 }
-
-// pub struct Asteroid {
-//     size: AsteroidSize,
-//     hitpoints: u16,
-// }
 

@@ -9,6 +9,7 @@ use hexworld::grid::shape;
 use hexworld::ui::gridview;
 use hexworld::ui::scroll;
 use hexworld::search;
+
 use hexworld_ggez::animation;
 use hexworld_ggez::image;
 use hexworld_ggez::mesh;
@@ -32,15 +33,15 @@ pub const UPDATES_PER_SEC: u16 = 60;
 /// The input commands that drive the UI and game state.
 pub enum Input {
     /// Scroll the grid view.
-    ScrollView(scroll::Delta, bool),
+    ScrollView { delta: scroll::Delta, repeat: bool },
     /// Resize the window contents.
-    ResizeView(f32, f32),
+    ResizeView { width: f32, height: f32 },
     /// Hover over the specified grid coordinates, or a part of the grid
-    /// that does not correspond to any valid coordinates.
-    HoverHexagon(Option<world::Coords>),
+    /// that does not correspond to any valid coordinates (i.e. `None`).
+    HoverHexagon { coords: Option<world::Coords> },
     /// Select the specified grid coordinates, or a part of the grid
-    /// that does not correspond to any valid coordinates.
-    SelectHexagon(Option<world::Coords>),
+    /// that does not correspond to any valid coordinates (i.e. `None`).
+    SelectHexagon { coords: Option<world::Coords> },
     /// Select a button from the control panel.
     SelectButton(Button),
     /// End the current turn.
@@ -126,9 +127,8 @@ impl State {
         world: &mut world::State,
         input: Input
     ) -> GameResult<Option<Input>> {
-        use Input::*;
         match input {
-            ResizeView(width, height) => {
+            Input::ResizeView { width, height } => {
                 self.view.resize(width as u32 - 302, height as u32 - 202);
                 let screen = graphics::Rect::new(0., 0., width, height);
                 graphics::set_screen_coordinates(ctx, screen)?;
@@ -143,16 +143,16 @@ impl State {
                 Ok(None)
             }
 
-            ScrollView(delta, repeat) => {
+            Input::ScrollView { delta, repeat } => {
                 self.view.scroll(delta);
                 if repeat {
-                    Ok(Some(ScrollView(delta, repeat)))
+                    Ok(Some(Input::ScrollView { delta, repeat }))
                 } else {
                     Ok(None)
                 }
             }
 
-            HoverHexagon(coords) => {
+            Input::HoverHexagon { coords } => {
                 self.hover = coords;
                 if let Some(c) = coords {
                     let entity = world.entity(c);
@@ -172,7 +172,7 @@ impl State {
                 Ok(None)
             }
 
-            SelectHexagon(coords) => {
+            Input::SelectHexagon { coords } => {
                 if self.selected.as_ref()
                     .and_then(|s| s.range.as_ref())
                     .and_then(|r| r.path.as_ref())
@@ -195,7 +195,7 @@ impl State {
                 Ok(None)
             }
 
-            SelectButton(btn) => {
+            Input::SelectButton(btn) => {
                 match btn {
                     Button::NewShip(class) => {
                         if let Some(c) = self.new_ship(world, class) {
@@ -232,7 +232,7 @@ impl State {
                 Ok(None)
             }
 
-            EndTurn() => {
+            Input::EndTurn() => {
                 self.end_turn(ctx, world)?;
                 Ok(None)
             }
@@ -305,7 +305,7 @@ impl State {
         if let Ok(grid) = mesh.build(ctx) {
             graphics::draw(ctx, &grid, grid_dp)?;
         }
-        graphics::draw_queued_text(ctx, grid_dp)?;
+        graphics::draw_queued_text(ctx, grid_dp, None, FilterMode::Linear)?;
 
         // Entities
         for (pos, entity) in world.iter() {
@@ -412,13 +412,12 @@ impl State {
             .and_then(|r| r.path
         )).unwrap_or(search::Path::empty());
         // Setup the new movement.
-        for world_move in world.begin_move(path) {
-            let mv = Movement::new(world_move, self.view.grid());
-            for sound in mv.inner.entity.sound(&mut self.assets.sounds) {
+        if let Some(world_move) = world.begin_move(path) {
+            let ui_move = Movement::new(world_move, self.view.grid());
+            if let Some(sound) = ui_move.inner.entity.sound(&mut self.assets.sounds) {
                 sound.play()?;
-                sound.set_volume(0.25);
             }
-            self.movement = Some(mv);
+            self.movement = Some(ui_move);
         }
         Ok(())
     }
@@ -428,7 +427,7 @@ impl State {
         world.end_move(mv.inner);
         let entity = world.entity(goal);
         // If nothing else has been selected meanwhile, select the
-        // ship again to continue movement.
+        // moved entity again to continue movement.
         self.selected = self.selected.take().or_else(|| {
             self.panel = ControlPanel::hexagon(ctx, goal, entity);
             self.view.grid().get(goal).map(|h|
@@ -438,6 +437,7 @@ impl State {
 
     fn end_turn(&mut self, ctx: &mut Context, world: &mut world::State) -> GameResult<()> {
         world.end_turn();
+        // Refresh the control panel.
         self.panel = match &self.selected {
             None => ControlPanel::main(ctx),
             Some(s) => {
@@ -445,6 +445,7 @@ impl State {
                 ControlPanel::hexagon(ctx, s.coords, entity)
             }
         };
+        // Advance the turn tracker.
         self.turn = TurnTracker::new(world.turn());
         Ok(())
     }
@@ -469,16 +470,13 @@ impl TurnTracker {
 }
 
 pub struct Movement {
-    pub inner: world::Movement,
-    pub pixel_path: animation::PathIter,
-    pub pixel_pos: Point2<f32>,
+    inner: world::Movement,
+    pixel_path: animation::PathIter,
+    pixel_pos: Point2<f32>,
 }
 
 impl Movement {
-    pub fn new(
-        mv: world::Movement,
-        grid: &Grid<world::Coords>
-    ) -> Movement {
+    pub fn new(mv: world::Movement, grid: &Grid<world::Coords>) -> Movement {
         let pixel_path = animation::path(UPDATES_PER_SEC, MOVE_HEX_SECS, grid, &mv.path);
         Movement {
             inner: mv,
@@ -494,9 +492,9 @@ pub struct MovementRange {
 }
 
 pub struct Settings {
-    pub show_grid: bool,
-    pub show_coords: bool,
-    pub show_cost: bool,
+    show_grid: bool,
+    show_coords: bool,
+    show_cost: bool,
 }
 
 impl Default for Settings {
@@ -510,8 +508,8 @@ impl Default for Settings {
 }
 
 struct ControlPanel {
-    pub info: Option<graphics::Text>,
-    pub menu: Menu<Button>,
+    info: Option<graphics::Text>,
+    menu: Menu<Button>,
 }
 
 impl ControlPanel {
@@ -608,12 +606,6 @@ impl Info {
         let text = graphics::Text::new(info);
         Info { text }
     }
-
-    // fn draw(&self, &mut ctx: Context, dp: DrawParam) -> GameResult<()> {
-    //     let width = self.text.width(ctx);
-    //     let dest = Point2::new(width / 2. - info_width as f32, height - 50.);
-    //     info.text.draw(ctx, DrawParam::default().dest(dest))?;
-    // }
 }
 
 struct Selected {

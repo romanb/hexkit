@@ -13,7 +13,9 @@ use std::collections::HashSet;
 use std::cmp::{ min, max };
 use std::fmt::{ Debug, Display };
 use std::hash::Hash;
+use std::iter;
 
+/// TODO
 pub trait Coords:
     From<Cube> + Into<Cube> + Eq + Copy + Debug + Display + Hash
 {}
@@ -60,6 +62,7 @@ where
     }
 }
 
+/// TODO
 pub struct LineIterator<C> {
     distance: usize,
     current: usize,
@@ -132,6 +135,7 @@ where
     })
 }
 
+/// TODO
 pub fn range_overlapping<C>(c1: C, c2: C, r: u16) -> impl Iterator<Item=C>
 where
     C: Coords
@@ -177,10 +181,11 @@ where
     reachable
 }
 
-/// Iterator over the visible coordinates in the specified range,
-/// where visibility of a coordinate `c` is determined by checking
+/// Returns an iterator over the visible coordinates in the specified range.
+///
+/// Visibility of a coordinate `c` is determined by checking
 /// whether all coordinates between `self` and `c` (as determined
-/// by `beeline`) satisfy the given predicate. The first blocked
+/// by [`beeline`]) satisfy the given predicate. The first blocked
 /// coordinate on a beeline is always considered visible.
 pub fn range_visible<C, F>(c: C, r: u16, f: F) -> impl Iterator<Item=C>
 where
@@ -214,6 +219,7 @@ where
     }
 }
 
+/// TODO
 pub struct RingIterator<C, I: Iterator<Item=CubeVec>> {
     pos: C,
     dirs: I,
@@ -266,7 +272,7 @@ where
     C: Coords,
     D: Direction
 {
-    let rings = (1..rad+1).flat_map(move |i| walk_ring(c, dir, i, rot));
-    std::iter::once(c).chain(rings)
+    let rings = (1 .. rad + 1).flat_map(move |i| walk_ring(c, dir, i, rot));
+    iter::once(c).chain(rings)
 }
 

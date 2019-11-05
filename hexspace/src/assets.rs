@@ -1,7 +1,9 @@
 
 pub use ggez::graphics;
 pub use ggez::audio;
-    use ggez::{ GameResult, Context };
+
+use ggez::audio::SoundSource;
+use ggez::{ GameResult, Context };
 
 pub struct Assets {
     pub images: Images,
@@ -25,10 +27,12 @@ pub struct Sounds {
 
 impl Sounds {
     fn load(ctx: &mut Context) -> GameResult<Sounds> {
-        let soundtrack = audio::Source::new(ctx, "/soundtrack.mp3")?;
+        let mut soundtrack = audio::Source::new(ctx, "/soundtrack.mp3")?;
+        soundtrack.set_volume(0.5);
         let select = audio::Source::new(ctx, "/select.wav")?;
         let button = audio::Source::new(ctx, "/button.mp3")?;
-        let engine = audio::Source::new(ctx, "/engine.mp3")?;
+        let mut engine = audio::Source::new(ctx, "/engine.mp3")?;
+        engine.set_volume(0.2);
         Ok(Sounds {
             soundtrack, select, engine, button
         })

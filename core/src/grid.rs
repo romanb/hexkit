@@ -27,6 +27,7 @@ pub struct Dimensions {
 }
 
 impl<C: Coords> Grid<C> {
+    /// Constructs a new grid whose tiles conform to the given schema.
     pub fn new<I>(schema: Schema, shape: Shape<I>) -> Grid<C>
     where I: IntoIterator<Item=Cube> {
         let num_hexagons = shape.total;
@@ -47,6 +48,8 @@ impl<C: Coords> Grid<C> {
         }
     }
 
+    /// Measures the dimensions of a grid, given the schema for the tiles and
+    /// the coordinates of the tile centers.
     fn measure(schema: &Schema, centers: &Vec<Point2<f32>>) -> Dimensions {
         let min_max = (Point2::origin(), Point2::origin());
         let (min, max) = centers.iter().fold(min_max, |(min, max), c| {
@@ -74,7 +77,7 @@ impl<C: Coords> Grid<C> {
     pub fn from_pixel(&self, p: Point2<f32>) -> Option<(C, &Hexagon)> {
         let offset = self.dimensions.pixel_offset;
         let c = C::from(Cube::from_pixel(p - offset, &self.schema));
-        self.store.get(&c).map(|h| (c,h))
+        self.store.get(&c).map(|h| (c, h))
     }
 
     pub fn to_pixel(&self, c: C) -> Point2<f32> {
@@ -120,7 +123,7 @@ mod tests {
     #[test]
     fn prop_new_grid() {
         fn prop(g: Grid<Cube>) -> bool {
-            g.iter().all(|(c,h)| {
+            g.iter().all(|(c, h)| {
                 let b = Bounds {
                     position: Point2::origin(),
                     width: g.dimensions.width,
@@ -130,7 +133,7 @@ mod tests {
                     &&
                 g.from_pixel(h.center).is_some()
                     &&
-                g.from_pixel(g.to_pixel(*c)) == Some((*c,h))
+                g.from_pixel(g.to_pixel(*c)) == Some((*c, h))
             })
         }
         quickcheck(prop as fn(_) -> _);

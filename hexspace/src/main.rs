@@ -60,9 +60,7 @@ impl EventHandler for State {
         }
 
         graphics::clear(ctx, BLACK);
-
         self.ui.draw(ctx, &self.world)?;
-
         graphics::present(ctx)?;
         self.updated = false;
         timer::yield_now();
@@ -76,7 +74,7 @@ impl EventHandler for State {
             self.input = Some(ui::Input::SelectButton(btn))
         } else {
             let coords = self.ui.view().from_pixel(p).map(|(c,_)| c);
-            self.input = Some(ui::Input::SelectHexagon(coords));
+            self.input = Some(ui::Input::SelectHexagon { coords });
         }
     }
 
@@ -84,13 +82,25 @@ impl EventHandler for State {
         let delta = (10 * if repeat { 2 } else { 1 }) as f32;
         self.input = match code {
             // Key scrolling
-            KeyCode::Right => Some(ui::Input::ScrollView(scroll::Delta { dx: delta, dy: 0.0 }, false)),
-            KeyCode::Left  => Some(ui::Input::ScrollView(scroll::Delta { dx: -delta, dy: 0.0 }, false)),
-            KeyCode::Down  => Some(ui::Input::ScrollView(scroll::Delta { dx: 0.0, dy: delta }, false)),
-            KeyCode::Up    => Some(ui::Input::ScrollView(scroll::Delta { dx: 0.0, dy: -delta }, false)),
+            KeyCode::Right => Some(ui::Input::ScrollView {
+                delta: scroll::Delta { dx: delta, dy: 0.0 },
+                repeat: false
+            }),
+            KeyCode::Left => Some(ui::Input::ScrollView {
+                delta: scroll::Delta { dx: -delta, dy: 0.0 },
+                repeat: false
+            }),
+            KeyCode::Down => Some(ui::Input::ScrollView {
+                delta: scroll::Delta { dx: 0.0, dy: delta },
+                repeat: false
+            }),
+            KeyCode::Up => Some(ui::Input::ScrollView {
+                delta: scroll::Delta { dx: 0.0, dy: -delta },
+                repeat: false
+            }),
 
             // Deselect
-            KeyCode::Escape => Some(ui::Input::SelectHexagon(None)),
+            KeyCode::Escape => Some(ui::Input::SelectHexagon { coords: None }),
 
             // End turn
             KeyCode::Return => Some(ui::Input::EndTurn()),
@@ -105,7 +115,7 @@ impl EventHandler for State {
         // always triggers scrolling.
         let scroll = self.ui.get_scroll(x, y);
         if scroll.dx != 0.0 || scroll.dy != 0.0 {
-            self.input = Some(ui::Input::ScrollView(scroll, true))
+            self.input = Some(ui::Input::ScrollView { delta: scroll, repeat: true })
         }
         // Mouse motion other than border scrolling should never override other
         // pending commands, except for repeated scrolling itself, so that the UI
@@ -121,15 +131,15 @@ impl EventHandler for State {
                     // to avoid needless repetitive work (mouse motion events
                     // fire plenty).
                     self.input = if coords != self.ui.hover() {
-                        Some(ui::Input::HoverHexagon(coords))
+                        Some(ui::Input::HoverHexagon { coords })
                     } else {
                         None
                     }
                 }
                 // Stop border scrolling.
-                Some(ui::Input::ScrollView(_, true)) => {
+                Some(ui::Input::ScrollView { repeat: true, .. }) => {
                     let coords = coords();
-                    self.input = Some(ui::Input::HoverHexagon(coords));
+                    self.input = Some(ui::Input::HoverHexagon { coords });
                 }
                 _ => {}
             }
@@ -137,7 +147,7 @@ impl EventHandler for State {
     }
 
     fn resize_event(&mut self, _ctx: &mut Context, width: f32, height: f32) {
-        self.input = Some(ui::Input::ResizeView(width, height));
+        self.input = Some(ui::Input::ResizeView { width, height });
     }
 }
 

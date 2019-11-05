@@ -53,7 +53,7 @@ pub fn tree<C: Coords>(
 ///
 /// This is equivalent to:
 /// ```raw
-/// tree(start, Some(goal), grid, ctx).path(goal)
+/// tree(start, Some(goal), ctx).path(goal)
 /// ```
 pub fn path<C: Coords>(
     start: C,

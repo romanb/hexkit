@@ -13,7 +13,8 @@ use super::*;
 /// only non-negative offset coordinates. For differently
 /// shaped grids the choice of offset coordinate type is
 /// insignificant.
-pub trait OffsetType: Debug + Hash + Eq + Copy + Clone + Send + 'static {}
+pub trait OffsetType: Debug + Hash + Eq + Copy + Clone + Send + 'static
+{}
 
 /// Offset coordinates.
 ///
