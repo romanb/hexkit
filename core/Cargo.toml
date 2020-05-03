@@ -1,8 +1,10 @@
 [package]
-name = "hexworld"
+name = "hexkit"
 version = "0.1.0"
 authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
+license = "MPL-2.0"
+description = "Hexagonal grid construction and navigation"
 
 [dependencies]
 nalgebra = { version = "0.18", features = ["mint"] }

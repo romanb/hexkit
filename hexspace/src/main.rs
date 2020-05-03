@@ -21,8 +21,8 @@ use ggez::input::mouse::MouseButton;
 use ggez::nalgebra::{ Point2 };
 use ggez::timer;
 
-use hexworld::grid::offset::{ Offset };
-use hexworld::ui::scroll;
+use hexkit::grid::offset::{ Offset };
+use hexkit::ui::scroll;
 
 /// The complete game state.
 struct State {

@@ -1,8 +1,8 @@
 
 pub mod menu;
 
-use hexworld::grid::Coords;
-use hexworld::ui::gridview;
+use hexkit::grid::Coords;
+use hexkit::ui::gridview;
 
 use ggez::*;
 use ggez::graphics::*;
@@ -37,9 +37,10 @@ pub mod mesh {
 
 pub mod image {
     use super::*;
-    use hexworld::geo::{ Hexagon, Schema, VAlign };
+    use hexkit::geo::{ Hexagon, Schema, VAlign };
     // use nalgebra::Point2;
 
+    /// Draw an centered image into a hexagon.
     pub fn draw_into(
         ctx: &mut Context,
         img: &Image,
@@ -56,7 +57,7 @@ pub mod image {
 
 pub mod text {
     use super::*;
-    use hexworld::geo::{ Hexagon, Schema, VAlign };
+    use hexkit::geo::{ Hexagon, Schema, VAlign };
 
     /// Queue a hexagon label for rendering.
     pub fn queue_label(
@@ -80,7 +81,7 @@ pub mod animation {
     use super::*;
     use std::borrow::Borrow;
     use nalgebra::Point2;
-    use hexworld::grid::Grid;
+    use hexkit::grid::Grid;
 
     pub struct PathIter {
         edges: Vec<(Point2<f32>, Point2<f32>)>,

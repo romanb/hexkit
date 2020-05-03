@@ -3,9 +3,9 @@
 
 use crate::assets::*;
 
-use hexworld::grid::coords;
-use hexworld::grid::Grid;
-use hexworld::search;
+use hexkit::grid::coords;
+use hexkit::grid::Grid;
+use hexkit::search;
 
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
@@ -18,6 +18,7 @@ pub type Path = search::Path<Coords>;
 
 /// The core state of the game world.
 pub struct State {
+    /// The current turn.
     turn: usize,
     entities: WorldMap<Entity>,
     costs: WorldMap<usize>,

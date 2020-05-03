@@ -796,16 +796,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "hexspace"
-version = "0.1.0"
-dependencies = [
- "ggez 0.5.1 (git+https://github.com/ggez/ggez)",
- "hexworld 0.1.0",
- "hexworld-ggez 0.1.0",
-]
-
-[[package]]
-name = "hexworld"
+name = "hexkit"
 version = "0.1.0"
 dependencies = [
  "either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -817,11 +808,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "hexworld-ggez"
+name = "hexkit-ggez"
 version = "0.1.0"
 dependencies = [
  "ggez 0.5.1 (git+https://github.com/ggez/ggez)",
- "hexworld 0.1.0",
+ "hexkit 0.1.0",
+]
+
+[[package]]
+name = "hexspace"
+version = "0.1.0"
+dependencies = [
+ "ggez 0.5.1 (git+https://github.com/ggez/ggez)",
+ "hexkit 0.1.0",
+ "hexkit-ggez 0.1.0",
 ]
 
 [[package]]

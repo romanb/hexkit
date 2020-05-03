@@ -3,9 +3,11 @@ name = "hexspace"
 version = "0.1.0"
 authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
+license = "MPL-2.0"
+description = "A game prototype as a playground for hexkit and ggez."
 
 [dependencies]
-hexworld = { path = "../core" }
-hexworld-ggez = { path = "../ggez" }
+hexkit = { path = "../core" }
+hexkit-ggez = { path = "../ggez" }
 ggez = { git = "https://github.com/ggez/ggez" }
 
