@@ -1,8 +1,6 @@
 
-# HexWorld
+# Hexkit
 
-The world of regular hexagons.
-
-Implementation of hexagonal grids based on the guide at
-[redblobgames.com](https://www.redblobgames.com/grids/hexagons/).
+Hexagonal maps and game construction kit, based on the resources
+at [redblobgames.com](https://www.redblobgames.com/grids/hexagons/).
 
