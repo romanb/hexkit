@@ -2,18 +2,19 @@
 use crate::assets::*;
 use crate::world;
 
-use hexkit::geo::*;
-use hexkit::grid::coords;
-use hexkit::grid::Grid;
-use hexkit::grid::shape;
-use hexkit::ui::gridview;
-use hexkit::ui::scroll;
-use hexkit::search;
+use hexacore::geo::*;
+use hexacore::grid::coords;
+use hexacore::grid::Grid;
+use hexacore::grid::shape;
+use hexacore::ui::gridview;
+use hexacore::ui::scroll;
+use hexacore::search;
 
-use hexkit_ggez::animation;
-use hexkit_ggez::image;
-use hexkit_ggez::mesh;
-use hexkit_ggez::menu::Menu;
+use hexggez::animation;
+use hexggez::image;
+use hexggez::mesh;
+use hexggez::menu::Menu;
+use hexggez::text;
 
 use ggez::{ Context, GameResult };
 use ggez::audio::SoundSource;
@@ -276,14 +277,14 @@ impl State {
             }
             // Coordinates label
             if self.settings.show_coords {
-                hexkit_ggez::text::queue_label(
+                text::queue_label(
                     ctx, schema, &hex, coords.to_string(),
                     VAlign::Bottom, WHITE, Scale::uniform(12.));
             }
             // Cost label
             if self.settings.show_cost {
                 let cost = world.cost(*coords).unwrap_or(1);
-                hexkit_ggez::text::queue_label(
+                text::queue_label(
                     ctx, schema, &hex, cost.to_string(),
                     VAlign::Middle, WHITE, Scale::uniform(graphics::DEFAULT_FONT_SCALE));
             }

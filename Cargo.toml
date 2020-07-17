@@ -1,5 +1,2 @@
 [workspace]
-members = [ "core", "ggez", "hexspace", ]
-
-# [patch.crates-io]
-# winit = { path = "../winit" }
+members = [ "hexacore", "hexggez", "hexspace", ]

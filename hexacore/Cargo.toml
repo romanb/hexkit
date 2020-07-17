@@ -1,13 +1,14 @@
 [package]
-name = "hexkit"
+name = "hexacore"
 version = "0.1.0"
 authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
 license = "MPL-2.0"
-description = "Hexagonal grid construction and navigation"
+description = "Hexagonal grid construction kit"
+repository = "https://gitlab.com/romanb/hexkit"
 
 [dependencies]
-nalgebra = { version = "0.18", features = ["mint"] }
+nalgebra = { version = ">= 0.18, < 0.22" }
 num-traits = "0.2"
 num-derive = "0.3"
 either = "1.5"

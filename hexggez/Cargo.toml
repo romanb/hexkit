@@ -1,13 +1,11 @@
 [package]
-name = "hexspace"
+name = "hexggez"
 version = "0.1.0"
 authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
 license = "MPL-2.0"
-description = "A game prototype as a playground for hexkit and ggez."
+description = "Game construction with hexacore and ggez."
 
 [dependencies]
 hexacore = { path = "../hexacore" }
-hexggez = { path = "../hexggez" }
 ggez = { git = "https://github.com/ggez/ggez", branch = "devel" }
-

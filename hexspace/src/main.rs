@@ -21,12 +21,14 @@ use ggez::input::mouse::MouseButton;
 use ggez::nalgebra::{ Point2 };
 use ggez::timer;
 
-use hexkit::grid::offset::{ Offset };
-use hexkit::ui::scroll;
+use hexacore::grid::offset::{ Offset };
+use hexacore::ui::scroll;
 
 /// The complete game state.
 struct State {
+    /// The UI state.
     ui: ui::State,
+    /// The core game (world) state.
     world: world::State,
     /// The next input to process, if any.
     input: Option<ui::Input>,

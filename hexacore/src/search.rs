@@ -1,4 +1,6 @@
 
+//! Search algorithms on hexagonal grids.
+
 pub mod astar;
 pub mod bfs;
 

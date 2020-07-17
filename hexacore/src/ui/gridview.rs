@@ -1,5 +1,5 @@
 
-//! TODO
+//! A generic UI state model for scrollable view of hexagonal grids.
 
 use crate::geo::{ Bounds, Hexagon };
 use crate::grid::{ Grid, Coords };
@@ -7,7 +7,7 @@ use crate::ui::scroll;
 
 use nalgebra::Point2;
 
-/// The state of a grid view.
+/// The state of a scrollable grid view.
 pub struct State<C: Coords> {
     grid: Grid<C>,
     viewport: Bounds,
@@ -16,7 +16,8 @@ pub struct State<C: Coords> {
 
 impl<C: Coords> State<C> {
 
-    /// TODO
+    /// Create a new scrollable view state for the given grid
+    /// and with the given bounds.
     pub fn new(grid: Grid<C>, bounds: Bounds) -> State<C> {
         State {
             grid,
@@ -53,7 +54,7 @@ impl<C: Coords> State<C> {
         &self.viewport
     }
 
-    /// TODO
+    /// Get a hexagon on the grid by its pixel coordinates.
     pub fn from_pixel(&self, p: Point2<f32>) -> Option<(C, &Hexagon)> {
         // FIXME: Turn self.position into bounds. self.viewport and
         // self.bounds differ only in position - width and height must

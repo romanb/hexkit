@@ -3,9 +3,9 @@
 
 use crate::assets::*;
 
-use hexkit::grid::coords;
-use hexkit::grid::Grid;
-use hexkit::search;
+use hexacore::grid::coords;
+use hexacore::grid::Grid;
+use hexacore::search;
 
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
