@@ -6,6 +6,7 @@ edition = "2018"
 license = "MPL-2.0"
 description = "Hexagonal grid construction kit"
 repository = "https://gitlab.com/romanb/hexkit"
+readme = "README.md"
 
 [dependencies]
 nalgebra = { version = ">= 0.18, < 0.22" }

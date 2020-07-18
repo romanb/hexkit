@@ -5,6 +5,7 @@ authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
 license = "MPL-2.0"
 description = "Game construction with hexacore and ggez."
+readme = "README.md"
 
 [dependencies]
 hexacore = { path = "../hexacore" }

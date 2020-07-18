@@ -6,11 +6,7 @@ use hexacore::ui::gridview;
 
 use ggez::*;
 use ggez::graphics::*;
-
 use ggez::nalgebra::Point2;
-// use nalgebra::Point2;
-
-// use ::nalgebra::Point2;
 
 pub mod mesh {
     use super::*;

@@ -4,7 +4,8 @@ version = "0.1.0"
 authors = ["Roman S. Borschel <roman@pkaboo.org>"]
 edition = "2018"
 license = "MPL-2.0"
-description = "A game prototype as a playground for hexkit and ggez."
+description = "A game prototype playground for hexggez."
+readme = "README.md"
 
 [dependencies]
 hexacore = { path = "../hexacore" }

@@ -1,7 +1,7 @@
 
 # HexSpace
 
-An exploration of game construction with hexkit and ggez.
+An exploration of game construction with `hexggez`.
 
 ```rust
 cargo run --release
@@ -9,12 +9,12 @@ cargo run --release
 
 The following are some of the aspects explored in this code:
 
-  * Constructing scollable, framed UIs with hexkit and ggez.
-  * Creating a responsive UI for turn-based hexagonal games, including
+  * Constructing scollable, framed UIs.
+  * Creating a responsive UI for turn-based hex map games, including
     animations, while minimising CPU use of the main game loop.
-  * Exploring path-finding on hexagonal maps.
-  * Separation of the core game state machine from the UI, e.g. for ease of
-    testing.
+  * Exploring path-finding on hex maps.
+  * Exploring separation of a core game state machine from the UI,
+    e.g. for ease of testing.
 
 # Assets
 
